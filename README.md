@@ -1,5 +1,7 @@
 # MuMo
 
+## Installation
+
 ```shell
 # Put the dependent tools under the tools folder.
 git clone https://github.com/IDEA-Research/OpenSeeD.git
