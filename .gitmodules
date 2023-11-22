@@ -1,0 +1,6 @@
+[submodule "tools/OpenSeeD"]
+	path = tools/OpenSeeD
+	url = https://github.com/IDEA-Research/OpenSeeD.git
+[submodule "tools/PITI"]
+	path = tools/PITI
+	url = https://github.com/PITI-Synthesis/PITI.git
