@@ -9,7 +9,7 @@ from PIL import Image
 import cv2
 import numpy as np
 np.random.seed(1)
-from util import mkdir, load_opt, Colorize
+from util import mkdir, load_opt, Colorize, category_to_coco, pos_tag
 import torch
 from torchvision import transforms
 from tools.OpenSeeD.utils.arguments import load_opt_command
@@ -30,16 +30,14 @@ from tools.PITI.pretrained_diffusion.train_util import TrainLoop
 from tools.PITI.pretrained_diffusion.glide_util import sample
 import time
 
-
 args = parser()
 
-
 def re_draw(image_path, output_path='./image_bank/', num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
-    '''_summary_ Use PITI to draw according to the given mask
+    '''Use PITI to draw according to the given mask
 
-    :param image_path: _description_ mask path
-    :param output_path: _description_ save path for generating images, defaults to './image_bank/'
-    :param num_samples: _description_ number of generating images, defaults to 1
+    :param image_path: mask path
+    :param output_path: save path for generating images, defaults to './image_bank/'
+    :param num_samples: number of generating images, defaults to 1
     :param sample_c: _description_, defaults to 1.3
     :param sample_step: _description_, defaults to 100
     :param device: _description_, defaults to 'cuda'
@@ -98,8 +96,8 @@ def re_draw(image_path, output_path='./image_bank/', num_samples=1, sample_c=1.3
             hr_img.save(save_path)
             index += 1    
 
-def semseg(image_path, model, colorizer, color_map, transform, output_path='./mask_bank'):
-    '''_summary_ Semantic segmentation and generation of RGB masks
+def semseg(image_path, model, colorizer, color_map, transform, coco_categories, output_path='./mask_bank'):
+    '''Semantic segmentation and generation of RGB masks
 
     :param image_path: _description_
     :param model: _description_
@@ -124,10 +122,14 @@ def semseg(image_path, model, colorizer, color_map, transform, output_path='./ma
 
         gray_mask = Image.new("RGB", (matrix.shape[1], matrix.shape[0]))
         pixels = gray_mask.load()
+        objects = []
         for i in range(matrix.shape[0]):
             for j in range(matrix.shape[1]):
                 color_index = matrix[i, j].item()
                 pixels[j, i] = tuple([color_map[color_index]] * 3)
+                current_obj = coco_categories[color_index]['category']
+                if current_obj not in objects:
+                    objects.append(current_obj)
 
         rgb_mask = gray_mask.convert('L')
         rgb_mask = np.array(rgb_mask)
@@ -137,9 +139,11 @@ def semseg(image_path, model, colorizer, color_map, transform, output_path='./ma
         save_name = os.path.splitext(ori_name)[0] + '-' + str(0) + '.png'
         save_path = os.path.join(output_path, save_name)
         rgb_mask.save(save_path)
+
+        return objects
             
 def panoseg(image_path, model, transform, categories):
-    '''_summary_ Panoptic segmentation to extract objects
+    '''Panoptic segmentation to extract objects
 
     :param image_path: _description_
     :param model: _description_
@@ -186,7 +190,7 @@ def load_draw_model(options, model_path, device='cuda'):
     return model.eval().to(device)
 
 def load_seg_model(model_path, conf_file=None, categories_path='./id-category.jsonl', mode='sem', categories={}, device='cuda'):
-    '''_summary_ load segmentation model
+    '''load segmentation model
 
     :param model_path: _description_
     :param conf_file: _description_, defaults to None
@@ -209,12 +213,6 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category.js
 
         with open(categories_path, 'rb') as f:
             index = 0
-            # for line in f:
-            #     data = json.loads(line)
-            #     stuff_classes.append(data['category'])
-            #     stuff_colors.append([data['id']] * 3)
-            #     stuff_dataset_id_to_contiguous_id[index] = data['id']
-            #     index += 1
             while True:
                 try:
                     data = pickle.load(f)
@@ -222,10 +220,7 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category.js
                     stuff_colors.append([data['id']] * 3)
                     stuff_dataset_id_to_contiguous_id[index] = data['id']
                     index += 1
-                except Exception as e:
-                    print('-------------')
-                    print(e)
-                    print('-------------')
+                except:
                     break
         MetadataCatalog.get("demo").set(
             stuff_colors=stuff_colors,
@@ -259,17 +254,18 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category.js
         model.model.sem_seg_head.num_classes = len(thing_classes + stuff_classes)
         return model
 
-def load_bert_model(model_name_or_path='bert-base-uncased', device='cuda'):
+def load_embed_model(model_name_or_path, device='cuda'):
     model = SentenceTransformer(model_name_or_path).to(device)
     return model
 
-def category_to_coco(model, category, coco_categories):
+def get_objs_from_caption(caption, candi_objs):
     # TODO
-    category_embedding = model.encode([category]).cpu()[0]
-    for item in coco_categories:
+    # 通过semseg得到img中包含哪几类obj（target_objs）
+    # 对caption进行分词，并将其映射到coco类别
+    # 映射后如果属于target_objs，则保留，否则，舍弃。
+    # 最后保留的objs将作为本图片要检测的target
 
-    return category
-
+    pass
 
 
 
@@ -293,15 +289,15 @@ if __name__ == "__main__":
     # sample_model_path = '/home/wgy/multimodal/tools/ckpt/upsample_mask.pt'
     # sample_model = load_draw_model(options['sample_model'], sample_model_path, device=device)
 
-    # seg_model_path = '/home/wgy/multimodal/tools/ckpt/model_state_dict_swint_51.2ap.pt'
-    # t = []
-    # t.append(transforms.Resize(512, interpolation=Image.BICUBIC))
-    # transform = transforms.Compose(t)
+    seg_model_path = '/home/wgy/multimodal/tools/ckpt/model_state_dict_swint_51.2ap.pt'
+    t = []
+    t.append(transforms.Resize(512, interpolation=Image.BICUBIC))
+    transform = transforms.Compose(t)
 
     print('loading semseg model...')
-    # categories_path = './id-category.jsonl'
-    # semseg_model, color_map = load_seg_model(model_path=seg_model_path, categories_path=categories_path, mode='sem', device=device)
-    # colorizer = Colorize(182)
+    categories_path = './id-category-embed.pkl'
+    semseg_model, color_map = load_seg_model(model_path=seg_model_path, categories_path=categories_path, mode='sem', device=device)
+    colorizer = Colorize(182)
 
     print('loading panoseg model...')
     # categories = {'thing': [], 'stuff': []}
@@ -310,26 +306,42 @@ if __name__ == "__main__":
 
     print('loading completed')
     # ==============================
-    # image_path = '/home/wgy/multimodal/MuMo/output/000000090208.jpg'
-    # items = panoseg(image_path=image_path, model=panoseg_model, transform=transform, categories=categories)
-    # image_path = '/home/wgy/multimodal/MuMo/output/000000382088.jpg'
-    # semseg(image_path=image_path, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform)
 
-    # image_path = '/home/wgy/multimodal/MuMo/mask_bank/test.png'
-    # re_draw(image_path, num_samples=20, device=device)
-
-    # bert_model = load_bert_model(device=device)
     coco_categories = []
     with open('/home/wgy/multimodal/MuMo/id-category-embed.pkl', 'rb') as f:
         while True:
             try:
                 data = pickle.load(f)
                 coco_categories.append(data)
-            except Exception as e:
-                print(e)
+            except:
                 break
-    print(len(coco_categories))
-    coco_category = category_to_coco(model=bert_model, category=category, coco_categories=coco_categories)
+
+    # image_path = '/home/wgy/multimodal/MuMo/output/000000090208.jpg'
+    # items = panoseg(image_path=image_path, model=panoseg_model, transform=transform, categories=categories)
+    image_path = '/home/wgy/multimodal/MuMo/output/000000090208.jpg'
+    objects = semseg(image_path=image_path, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+    print(objects)
+
+    # image_path = '/home/wgy/multimodal/MuMo/mask_bank/test.png'
+    # re_draw(image_path, num_samples=20, device=device)
+    # embed_model_name = 'SpanBERT/spanbert-large-cased'
+    # embed_model = load_embed_model(model_name_or_path=embed_model_name, device=device)
+    # with open('/home/wgy/multimodal/MuMo/id-category.jsonl', 'r') as f, open('/home/wgy/multimodal/MuMo/id-category-embed.pkl', 'wb') as f1:
+    #     for line in f:
+    #         data = json.loads(line)
+    #         index = data['id']
+    #         category = data['category']
+    #         embed = embed_model.encode([category])[0]
+    #         sample_data = {
+    #             'id': index,
+    #             'category': category,
+    #             'embed': embed
+    #         }
+    #         pickle.dump(sample_data, f1)
+    
+    # coco_category = category_to_coco(model=embed_model, category='parking timer', coco_categories=coco_categories)
+    # print(coco_category)
+
 
 
 

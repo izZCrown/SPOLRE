@@ -26,3 +26,5 @@ blobfile==1.2.7
 scipy==1.7.3
 pillow==9.5.0
 sentence-transformers
+spacy
+word2number
