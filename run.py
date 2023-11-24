@@ -189,7 +189,7 @@ def load_draw_model(options, model_path, device='cuda'):
     model.load_state_dict(model_ckpt, strict=True)
     return model.eval().to(device)
 
-def load_seg_model(model_path, conf_file=None, categories_path='./id-category.jsonl', mode='sem', categories={}, device='cuda'):
+def load_seg_model(model_path, conf_file=None, categories_path='./id-category.jsonl', mode='sem', device='cuda'):
     '''load segmentation model
 
     :param model_path: _description_
@@ -233,8 +233,18 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category.js
         model.model.sem_seg_head.num_classes = len(stuff_classes)
         return model, stuff_dataset_id_to_contiguous_id
     else:
-        thing_classes = categories['thing']
-        stuff_classes = categories['stuff']
+        thing_classes = []
+        stuff_classes = []
+
+        with open(categories_path, 'rb') as f:
+            while True:
+                try:
+                    data = pickle.load(f)
+                    if data['id'] < 90:
+                        thing_classes.append(data['category'])
+                    else:
+                        stuff_classes.append(data['category'])
+        categories = [{'thing': thing_classes}, {'stuff': stuff_classes}]
         thing_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(thing_classes))]
         stuff_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(stuff_classes))]
         thing_dataset_id_to_contiguous_id = {x:x for x in range(len(thing_classes))}
@@ -252,17 +262,34 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category.js
         metadata = MetadataCatalog.get('demo')
         model.model.metadata = metadata
         model.model.sem_seg_head.num_classes = len(thing_classes + stuff_classes)
-        return model
+        return model, categories
 
 def load_embed_model(model_name_or_path, device='cuda'):
     model = SentenceTransformer(model_name_or_path).to(device)
     return model
 
-def get_objs_from_caption(caption, candi_objs):
+def get_objs_from_caption(image_path, caption, candi_objs, panoseg_model, transform, coco_categories, pano_categories, embed_model, source='gt'):
+    if source not in ['gt', 'ic']:
+        raise ValueError(f"Invalid mode: {source}. Mode must be 'gt' or 'ic'.")
     # TODO
-    # 通过semseg得到img中包含哪几类obj（target_objs）
+    # 通过semseg得到img中包含哪几类obj（candi_objs）
     # 对caption进行分词，并将其映射到coco类别
+    target_objs = []
+    caption_objs = pos_tag(caption)
+    pano_objs = panoseg(image_path=image_path, model=panoseg_model, transform=transform, categories=pano_categories)
+    for obj in caption_objs:
+        _, coco_category = category_to_coco(model=embed_model, category=obj['obj'], coco_categories=coco_categories)
+        if coco_category in candi_objs:
+            count = pano_objs.count(coco_category)
+            data = {
+                'obj': coco_category,
+                'num': count
+            }
+            target_objs.append(data)
+    return target_objs
+
     # 映射后如果属于target_objs，则保留，否则，舍弃。
+    # 通过panoseg确定每一类obj的数量
     # 最后保留的objs将作为本图片要检测的target
 
     pass
@@ -294,15 +321,13 @@ if __name__ == "__main__":
     t.append(transforms.Resize(512, interpolation=Image.BICUBIC))
     transform = transforms.Compose(t)
 
-    print('loading semseg model...')
     categories_path = './id-category-embed.pkl'
+    print('loading semseg model...')
     semseg_model, color_map = load_seg_model(model_path=seg_model_path, categories_path=categories_path, mode='sem', device=device)
     colorizer = Colorize(182)
 
     print('loading panoseg model...')
-    # categories = {'thing': [], 'stuff': []}
-    # categories = {'thing': ['bus'], 'stuff': ['tree']}
-    # panoseg_model = load_seg_model(model_path=seg_model_path, mode='pano', categories=categories, device=device)
+    panoseg_model, pano_categories = load_seg_model(model_path=seg_model_path, mode='pano', device=device)
 
     print('loading completed')
     # ==============================
