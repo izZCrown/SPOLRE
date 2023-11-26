@@ -2,6 +2,7 @@ import os
 import yaml
 import numpy as np
 from scipy.spatial.distance import cosine
+from word2number import w2n
 import spacy
 nlp = spacy.load("en_core_web_sm")
 
@@ -54,7 +55,6 @@ def labelcolormap(N):
         cmap[i, 0] =  r
         cmap[i, 1] =  g
         cmap[i, 2] =  b
-     
     return cmap
 
 class Colorize(object):
@@ -64,7 +64,7 @@ class Colorize(object):
     def __call__(self, gray_image):
         size = gray_image.shape
         color_image = np.zeros((3, size[0], size[1])) 
-     
+    
         for label in range(0, len(self.cmap)):
             mask = (label == gray_image ) 
             color_image[0][mask] = self.cmap[label][0]
@@ -86,13 +86,12 @@ def category_to_coco(model, category, coco_categories):
     for item in coco_categories:
         cos_dis = cosine(category_embedding, item['embed'])
         distances.append(cos_dis)
-    for i, item in enumerate(distances):
-        print(f'{i}: {item}: {coco_categories[i]["category"]}')
+
     min_dis = min(distances)
     min_index = distances.index(min_dis)
-    index = coco_categories[min_index]['id']
     category = coco_categories[min_index]['category']
-    return min_index, category
+    color = coco_categories[min_index]['color']
+    return category, color
 
 def pos_tag(sentence):
     nouns = []
@@ -108,13 +107,17 @@ def pos_tag(sentence):
         }
         token = tokens[i]
         if token.pos_ in targets:
-            noun = token.text
-            if i + 1 < len(tokens) and tokens[i+1].pos_ in targets:
-                noun += ' ' + tokens[i+1].text
-                i += 1
-            data['obj'] = noun
+            noun = [token.text]
 
-            length = len(noun.split())
+            j = i + 1
+            while j < len(tokens) and tokens[j].pos_ in targets:
+                noun.append(tokens[j].text)
+                j += 1
+            
+            noun_pharse = ' '.join(noun)
+            data['obj'] = noun_pharse
+
+            length = len(noun_pharse.split())
             if i > 0 and (tokens[i-length].pos_ == 'NUM' or tokens[i-length].text.lower() in ['a', 'an']):
                 if tokens[i-length].pos_ == 'NUM':
                     count = w2n.word_to_num(tokens[i-length].text)
@@ -123,6 +126,7 @@ def pos_tag(sentence):
                 data['num'] = count
                 data['hasNum'] = True
             nouns.append(data)
+            i = j - 1
         i += 1
     return nouns
 

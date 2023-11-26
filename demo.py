@@ -1,44 +1,25 @@
-import spacy
-from word2number import w2n
+from sentence_transformers import CrossEncoder
+import json
+import numpy as np
+import torch
+import torch.nn.functional as F
 
-# 加载英文模型
-nlp = spacy.load("en_core_web_sm")
-def pos_tag(sentence):
-    nouns = []
-    targets = ['NOUN', 'PROPN']
-    tokens = nlp(sentence)
+# model = CrossEncoder('cross-encoder/nli-deberta-v3-base')
 
-    i = 0
-    while i < len(tokens):
-        data = {
-            'obj': '',
-            'num': 1,
-            'hasNum': False
-        }
-        token = tokens[i]
-        if token.pos_ in targets:
-            noun = token.text
-            if i + 1 < len(tokens) and tokens[i+1].pos_ in targets:
-                noun += ' ' + tokens[i+1].text
-                i += 1
-            data['obj'] = noun
+# scores = []
+# # score = model.predict([('man', 'dog')])[0]
+# # print(score[1] - score[0])
+# with open('/home/wgy/multimodal/MuMo/id-category-color.jsonl', 'r') as f:
+#     for line in f:
+#         data = json.loads(line)
+#         category = data['category']
+#         score = model.predict([('apple tree', category)])[0]
+#         print(f'{category}: {score}')
 
-            length = len(noun.split())
-            if i > 0 and (tokens[i-length].pos_ == 'NUM' or tokens[i-length].text.lower() in ['a', 'an']):
-                if tokens[i-length].pos_ == 'NUM':
-                    count = w2n.word_to_num(tokens[i-length].text)
-                else:
-                    count = 1
-                data['num'] = count
-                data['hasNum'] = True
-            nouns.append(data)
-        i += 1
-    return nouns
-# 示例句子
-sentence = "a bus and three cars and three apple tree"
-
-nouns = pos_tag(sentence)
-print(nouns)
-sentence = "bus and three cars and an apple tree"
-nouns = pos_tag(sentence)
-print(nouns)
+# print(np.argmax(scores))
+list1 = torch.tensor([-2.6020617, 1.8440553])
+list2 = torch.tensor([-3.0912812, -0.7404097])
+list1 = F.softmax(list1, dim=0)
+list2 = F.softmax(list2, dim=0)
+print(list1)
+print(list2)
