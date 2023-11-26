@@ -31,6 +31,7 @@ from tools.PITI.pretrained_diffusion.image_datasets_mask import get_tensor
 from tools.PITI.pretrained_diffusion.train_util import TrainLoop
 from tools.PITI.pretrained_diffusion.glide_util import sample
 import time
+from tqdm import tqdm
 
 args = parser()
 
@@ -356,6 +357,7 @@ def get_target_obj(image_path, mask_path, contains, kernel_size=10, output_path=
         inpaint_img = inpaint(image=image, mask=inpaint_mask, kernel_size=kernel_size)
         save_name = f'{target_obj}.png'
         inpaint_img.save(os.path.join(save_path, save_name))
+        return save_path
     
     for i in range(mask.shape[0]):
         for j in range(mask.shape[1]):
@@ -493,7 +495,34 @@ if __name__ == "__main__":
     mkdir(output_path)
 
     caption_path = '/home/wgy/multimodal/MuMo/image_cation.json'
-    with open(caption_path, 'r') as f
+    target_objs_path = '/home/wgy/multimodal/MuMo/target_objs.json'
+    with open(caption_path, 'r') as f_r, open(target_objs_path, 'w') as f_w:
+        data_list = json.load(f_r)
+
+    for key in tqdm(data_list.keys()):
+        image_name = data_list[key]['img_id']
+        print(image_name)
+        caption = data_list[key]['caption']
+
+        image_path = os.path.join(image_bank_path, image_name)
+        image = Image.open(image_path)
+        candi_objs, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+        mask = Image.fromarray(mask.astype(np.uint8))
+        mask_path = os.path.join(mask_bank_path, image_name)
+        mask.save(mask_path)
+
+        target_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=candi_objs, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
+
+        sample_data = {
+            'name': image_name,
+            'target': target_objs
+        }
+        json.dump(data, f_w, indent=4)
+
+        image_dir_path = get_target_obj(image_path=image_path, mask_path=mask_path, contains=target_objs, output_path=output_path)
+        obj2mask(image_dir=image_dir_path, contains=target_objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+
+
 
 
 
