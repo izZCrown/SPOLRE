@@ -28,5 +28,6 @@ pillow==9.5.0
 sentence-transformers
 protobuf=3.20.0
 spacy
+nltk
 word2number
 simple-lama-inpainting

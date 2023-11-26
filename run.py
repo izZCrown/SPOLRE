@@ -9,7 +9,7 @@ from PIL import Image, ImageChops
 import cv2
 import numpy as np
 np.random.seed(1)
-from util import mkdir, load_opt, Colorize, category_to_coco, pos_tag
+from util import mkdir, load_opt, Colorize, category_to_coco, get_nouns
 import torch
 from torchvision import transforms
 from tools.OpenSeeD.utils.arguments import load_opt_command
@@ -35,7 +35,7 @@ from tqdm import tqdm
 
 args = parser()
 
-def re_draw(image_path, output_path='./image_bank/', num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
+def re_draw(image_path, base_model, sample_model, output_path='./image_bank/', num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
     '''Use PITI to draw according to the given mask
 
     :param image_path: mask path
@@ -48,6 +48,7 @@ def re_draw(image_path, output_path='./image_bank/', num_samples=1, sample_c=1.3
     mkdir(output_path)
 
     image = Image.open(image_path)
+    # label = image.convert("RGB").resize((256, 256), Image.NEAREST)
     label = image.convert("RGB").resize((256, 256), Image.NEAREST)
     label_tensor = get_tensor()(label)
 
@@ -91,7 +92,7 @@ def re_draw(image_path, output_path='./image_bank/', num_samples=1, sample_c=1.3
 
         ori_name = os.path.basename(image_path)
         index = 0
-        for hr in samples_hr:
+        for hr in tqdm(samples_hr):
             save_name = os.path.splitext(ori_name)[0] + '-' + str(index) + '.png'
             save_path = os.path.join(output_path, save_name)
             hr_img = 255. * rearrange((hr.cpu().numpy()+1.0)*0.5, 'c h w -> h w c')
@@ -296,7 +297,7 @@ def get_objs_from_caption(caption, coco_categories, embed_model, image=None, can
         raise ValueError(f"Invalid mode: {source}. Source must be 'gt' or 'ic'.")
 
     target_objs = []
-    caption_objs = pos_tag(caption)
+    caption_objs = get_nouns(caption)
     if source == 'gt':
         pano_objs = panoseg(image=image, model=panoseg_model, transform=transform, categories=pano_categories)
         for obj in caption_objs:
@@ -326,7 +327,7 @@ def inpaint(image, mask, kernel_size):
     inpaint_img = lama(image, exp_mask)
     return inpaint_img
 
-def get_target_obj(image_path, mask_path, contains, kernel_size=10, output_path='./output/'):
+def get_target_obj(image_path, mask, contains, kernel_size=40, output_path='./output/'):
     '''从image中把mask中target_color的obj扣掉
     contains = [{'obj': 'bus', 'num': 3, 'color': [0, 128, 128]}]
     :param model: _description_
@@ -341,8 +342,8 @@ def get_target_obj(image_path, mask_path, contains, kernel_size=10, output_path=
     save_path = os.path.join(output_path, os.path.splitext(os.path.basename(image_path))[0])
     mkdir(save_path)
 
-    image = Image.open(image_path)
-    mask = np.array(Image.open(mask_path))
+    # image = Image.open(image_path)
+    # mask = np.array(Image.open(mask_path))
     objs = [item['obj'] for item in contains]
     colors = [item['color'] for item in contains]
     inpaint_mask = np.zeros_like(mask)
@@ -357,7 +358,6 @@ def get_target_obj(image_path, mask_path, contains, kernel_size=10, output_path=
         inpaint_img = inpaint(image=image, mask=inpaint_mask, kernel_size=kernel_size)
         save_name = f'{target_obj}.png'
         inpaint_img.save(os.path.join(save_path, save_name))
-        return save_path
     
     for i in range(mask.shape[0]):
         for j in range(mask.shape[1]):
@@ -368,6 +368,7 @@ def get_target_obj(image_path, mask_path, contains, kernel_size=10, output_path=
     inpaint_img = inpaint(image=image, mask=inpaint_mask, kernel_size=kernel_size)
     save_name = 'background.png'
     inpaint_img.save(os.path.join(save_path, save_name))
+    return save_path
 
 def obj2mask(image_dir, contains, model, colorizer, color_map, transform, coco_categories):
     image_list = os.listdir(image_dir)
@@ -449,20 +450,20 @@ if __name__ == "__main__":
     # image_path = '/home/wgy/multimodal/MuMo/output/000000090208.jpg'
 
     # caption = 'a close up of a knife and a cup on a surface'
-    caption = "A person getting a kiss on the neck from an elephant's trunk"
-    # items = panoseg(image_path=image_path, model=panoseg_model, transform=transform, categories=categories)
-    image_path = '/home/wgy/multimodal/MuMo/output/000000006894.jpg'
-    mask_path = '/home/wgy/multimodal/MuMo/mask_bank/000000006894-0.png'
-    image = Image.open(image_path)
-    objects, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
-    mask = Image.fromarray(mask.astype(np.uint8))
-    mask.save(mask_path)
+    # caption = "A person getting a kiss on the neck from an elephant's trunk"
+    # # items = panoseg(image_path=image_path, model=panoseg_model, transform=transform, categories=categories)
+    # image_path = '/home/wgy/multimodal/MuMo/output/000000006894.jpg'
+    # mask_path = '/home/wgy/multimodal/MuMo/mask_bank/000000006894-0.png'
+    # image = Image.open(image_path)
+    # objects, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+    # mask = Image.fromarray(mask.astype(np.uint8))
+    # mask.save(mask_path)
 
-    objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=objects, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
-    print(objs)
-    # objs = [{'obj': 'knife', 'num': 1, 'color': [128, 64, 64]}, {'obj': 'cup', 'num': 1, 'color': [192, 128, 192]}]
-    get_target_obj(image_path=image_path, mask_path=mask_path, contains=objs)
-    obj2mask(image_dir='/home/wgy/multimodal/MuMo/output/000000006894', contains=objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+    # objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=objects, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
+    # print(objs)
+    # # objs = [{'obj': 'knife', 'num': 1, 'color': [128, 64, 64]}, {'obj': 'cup', 'num': 1, 'color': [192, 128, 192]}]
+    # get_target_obj(image_path=image_path, mask_path=mask_path, contains=objs)
+    # obj2mask(image_dir='/home/wgy/multimodal/MuMo/output/000000006894', contains=objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
 
 
     # image_path = '/home/wgy/multimodal/MuMo/output/000000090208.jpg'
@@ -496,31 +497,71 @@ if __name__ == "__main__":
 
     caption_path = '/home/wgy/multimodal/MuMo/image_cation.json'
     target_objs_path = '/home/wgy/multimodal/MuMo/target_objs.json'
-    with open(caption_path, 'r') as f_r, open(target_objs_path, 'w') as f_w:
+    with open(caption_path, 'r') as f_r:
         data_list = json.load(f_r)
 
-    for key in tqdm(data_list.keys()):
-        image_name = data_list[key]['img_id']
-        print(image_name)
-        caption = data_list[key]['caption']
+    with open(target_objs_path, 'w') as f_w:
+        # for key in tqdm(data_list.keys()):
+        #     image_name = data_list[key]['img_id']
+        #     caption = data_list[key]['caption']
 
-        image_path = os.path.join(image_bank_path, image_name)
-        image = Image.open(image_path)
-        candi_objs, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
-        mask = Image.fromarray(mask.astype(np.uint8))
-        mask_path = os.path.join(mask_bank_path, image_name)
-        mask.save(mask_path)
+        #     image_path = os.path.join(image_bank_path, image_name)
+        #     image = Image.open(image_path)
+        #     candi_objs, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+        #     mask = Image.fromarray(mask.astype(np.uint8))
+        #     mask_path = os.path.join(mask_bank_path, image_name)
+        #     mask.save(mask_path)
 
-        target_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=candi_objs, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
+        #     target_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=candi_objs, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
 
-        sample_data = {
-            'name': image_name,
-            'target': target_objs
-        }
-        json.dump(data, f_w, indent=4)
+        #     if len(target_objs) != 0:
+        #         sample_data = {
+        #             'name': image_name,
+        #             'target': target_objs,
+        #             'candi': candi_objs,
+        #             'caption': caption
+        #         }
+        #         json.dump(sample_data, f_w, indent=4)
 
-        image_dir_path = get_target_obj(image_path=image_path, mask_path=mask_path, contains=target_objs, output_path=output_path)
-        obj2mask(image_dir=image_dir_path, contains=target_objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+        #         image_dir_path = get_target_obj(image_path=image_path, mask_path=mask_path, contains=target_objs, output_path=output_path)
+        #         obj2mask(image_dir=image_dir_path, contains=target_objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+
+
+        
+        # for key in tqdm(data_list.keys()):
+        #     image_name = data_list[key]['img_id']
+        #     if image_name == '000000002592.jpg':
+        #         caption = data_list[key]['caption']
+
+        #         image_path = os.path.join(image_bank_path, image_name)
+        #         image = Image.open(image_path)
+        #         candi_objs, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+        #         # mask = Image.fromarray(mask.astype(np.uint8))
+        #         # mask_path = os.path.join(mask_bank_path, image_name)
+        #         # mask.save(mask_path)
+
+        #         target_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=candi_objs, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
+
+        #         sample_data = {
+        #             'name': image_name,
+        #             'target': target_objs,
+        #             'candi': candi_objs
+        #         }
+        #         json.dump(sample_data, f_w, indent=4)
+
+        #         image_dir_path = get_target_obj(image_path=image_path, mask=mask.astype(np.uint8), contains=target_objs, output_path=output_path)
+        #         obj2mask(image_dir=image_dir_path, contains=target_objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
+        #         break
+
+        image_dir = '/home/wgy/multimodal/MuMo/gen_mask/000000002592'
+        mask_list = os.listdir(image_dir)
+        output_dir = './gen_image'
+
+        for image_name in tqdm(mask_list):
+            base_name = os.path.splitext(image_name)[0]
+            image_path = os.path.join(image_dir, image_name)
+            output_path = os.path.join(output_dir, base_name)
+            re_draw(image_path=image_path, base_model=base_model, sample_model=sample_model, output_path=output_path, num_samples=10)
 
 
 
