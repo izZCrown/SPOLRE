@@ -1,0 +1,29 @@
+nohup: ignoring input
+[a100:2731331] mca_base_component_repository_open: unable to open mca_btl_openib: librdmacm.so.1: cannot open shared object file: No such file or directory (ignored)
+loading drawing model...
+loading semseg model...
+/home/wgy/miniconda3/envs/mumo/lib/python3.9/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at ../aten/src/ATen/native/TensorShape.cpp:3526.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+self.task_switch  {'coco': True, 'o365': False}
+loading panoseg model...
+self.task_switch  {'coco': True, 'o365': False}
+loading classifier...
+loading models completed
+  0%|          | 0/37 [00:00<?, ?it/s]Extracting target objs from caption...
+Extracting target objs...
+Adjusting layout...
+
+  0%|          | 0/9 [00:00<?, ?it/s][A
+ 11%|█         | 1/9 [00:06<00:55,  6.93s/it][A
+ 22%|██▏       | 2/9 [00:13<00:48,  6.89s/it][A
+ 33%|███▎      | 3/9 [00:20<00:41,  6.86s/it][A
+ 44%|████▍     | 4/9 [00:27<00:34,  6.86s/it][A
+ 56%|█████▌    | 5/9 [00:34<00:27,  6.90s/it][A
+ 67%|██████▋   | 6/9 [00:41<00:20,  6.89s/it][A
+ 78%|███████▊  | 7/9 [00:48<00:13,  6.88s/it][A
+ 89%|████████▉ | 8/9 [00:54<00:06,  6.86s/it][A
+100%|██████████| 9/9 [01:01<00:00,  6.89s/it][A100%|██████████| 9/9 [01:01<00:00,  6.88s/it]
+Generating new images...
+
+  0%|          | 0/11 [00:00<?, ?it/s][A
+  9%|▉         | 1/11 [00:23<03:52, 23.26s/it][A

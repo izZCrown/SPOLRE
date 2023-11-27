@@ -144,27 +144,27 @@ def obj_mask_change(obj):
     src_info = obj["info"]
     dst_dict = {}
     dst_dict["category"] = obj["category"]
-    print("change cat:", obj["category"])
+    # print("change cat:", obj["category"])
 
     # choice = random.randint(1, CHANGE_TYPE_NUM)
     choice = int(random.uniform(1, CHANGE_TYPE_NUM+1))
     if choice == TRANSLATE:
-        print("平移(TRANSLATE)")
+        # print("平移(TRANSLATE)")
         dst_dict["mask"] = translate(src_mask, src_info)
 
     elif choice == REVOLVE:
-        print("旋转(REVOLVE)")
+        # print("旋转(REVOLVE)")
         # angle = int(random.uniform(0 + 1, 360 - 1))
         angle = int(random.uniform(1, 90))
         dst_dict["mask"] = revolve(src_mask, src_info, angle)
 
     elif choice == SCALING:
-        print("放缩(SCALING)")
+        # print("放缩(SCALING)")
         multiple = multiple_list[int(random.uniform(0, len(multiple_list)))]
         dst_dict["mask"] = scaling(src_mask, src_info, multiple)
 
     elif choice == MIRROR:
-        print("镜像(MIRROR)")
+        # print("镜像(MIRROR)")
         direction = int(random.uniform(-3, 3))
         dst_dict["mask"] = mirror(src_mask, direction)
 
@@ -184,13 +184,12 @@ def single_layout_generate(index, output_path, bg, obj_list, obj_num, change_tim
 
     obj_list.sort(key=sortBySize, reverse=True)
     layout = img_merge(bg, obj_list)
-    
-    save_name = f'{index}.png'
+    ori_name = os.path.basename(output_path)
+    save_name = f'{ori_name}-{index+1}.png'
     save_path = os.path.join(output_path, save_name)
     cv2.imwrite(save_path, layout.astype(np.uint8))
 
 def editor(image_dir, output_path, step, gen_num):
-    image_dir = '/home/wgy/multimodal/MuMo/output/000000002592'
     for index in tqdm(range(gen_num)):
         all_img = os.listdir(image_dir)
         bg_img = 'background.png'
@@ -199,12 +198,3 @@ def editor(image_dir, output_path, step, gen_num):
         background = cv2.imread(bg_img_path)
         obj_list = get_obj_img(image_dir=image_dir, image_list=all_img)
         single_layout_generate(index, output_path, background, obj_list, len(obj_list), step)
-
-image_dir = '/home/wgy/multimodal/MuMo/output/000000002592'
-output_path = '/home/wgy/multimodal/MuMo/gen_mask/000000002592'
-
-editor(image_dir, output_path, 10, 10)
-
-    
-
-
