@@ -17,7 +17,8 @@ MIRROR = 4      # 镜像
 # SCALING_TRANSLATE = 5 # 平移+旋转
 CHANGE_TYPE_NUM = 4 # 可选择的变换数量
 BACKGROUND = (255, 255, 255) # 背景色
-multiple_list = [0.4, 0.5, 0.6, 0.7, 0.8, 1.2, 1.3, 1.4, 1.5]  # 放缩倍数
+# multiple_list = [0.4, 0.5, 0.6, 0.7, 0.8, 1.2, 1.3, 1.4, 1.5]  # 放缩倍数
+multiple_list = [0.7, 0.8, 0.9, 1.1, 1.2, 1.3]  # 放缩倍数
 
 
 # 平移
@@ -185,7 +186,8 @@ def obj_mask_change(obj):
 
     elif choice == REVOLVE:
         print("旋转(REVOLVE)")
-        angle = int(random.uniform(0 + 1, 360 - 1))
+        # angle = int(random.uniform(0 + 1, 360 - 1))
+        angle = int(random.uniform(1, 90))
         dst_dict["mask"] = revolve(src_mask, src_info, angle)
 
     elif choice == SCALING:

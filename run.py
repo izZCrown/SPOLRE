@@ -35,6 +35,132 @@ from tqdm import tqdm
 
 args = parser()
 
+
+def load_draw_model(options, model_path, device='cuda'):
+    '''_summary_
+
+    :param options: _description_
+    :param model_path: _description_
+    :param device: _description_, defaults to 'cuda'
+    :return: _description_
+    '''
+    model_ckpt = torch.load(model_path, map_location='cpu')
+    model, _ = create_model_and_diffusion(**options)
+    model.load_state_dict(model_ckpt, strict=True)
+    return model.eval().to(device)
+
+def load_seg_model(model_path, conf_file=None, categories_path='./id-category-color-embed.pkl', mode='sem', device='cuda'):
+    '''load segmentation model
+
+    :param model_path: _description_
+    :param conf_file: _description_, defaults to None
+    :param categories_path: _description_, defaults to './id-category.jsonl'
+    :param mode: _description_, defaults to 'sem'
+    :param categories: _description_, defaults to {}
+    :param device: _description_, defaults to 'cuda'
+    :raises ValueError: _description_
+    :return: _description_
+    '''
+    if mode not in ['sem', 'pano']:
+        raise ValueError(f"Invalid mode: {mode}. Mode must be 'sem' or 'pano'.")
+    opt = load_opt(conf_file)
+    opt['WEIGHT'] = model_path
+    model = BaseModel(opt, build_model(opt)).from_pretrained(opt['WEIGHT']).eval().to(device)
+    if mode == 'sem':
+        stuff_classes = []
+        stuff_colors = []
+        stuff_dataset_id_to_contiguous_id = {}
+
+        with open(categories_path, 'rb') as f:
+            index = 0
+            while True:
+                try:
+                    data = pickle.load(f)
+                    stuff_classes.append(data['category'])
+                    stuff_colors.append([data['id']] * 3)
+                    stuff_dataset_id_to_contiguous_id[index] = data['id']
+                    index += 1
+                except Exception as e:
+                    break
+        MetadataCatalog.get("semseg").set(
+            stuff_colors=stuff_colors,
+            stuff_classes=stuff_classes,
+            stuff_dataset_id_to_contiguous_id=stuff_dataset_id_to_contiguous_id,
+        )
+        model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(stuff_classes, is_eval=True)
+        metadata = MetadataCatalog.get('semseg')
+        model.model.metadata = metadata
+        model.model.sem_seg_head.num_classes = len(stuff_classes)
+        return model, stuff_dataset_id_to_contiguous_id
+    else:
+        thing_classes = []
+        stuff_classes = []
+
+        with open(categories_path, 'rb') as f:
+            while True:
+                try:
+                    data = pickle.load(f)
+                    if data['id'] < 90:
+                        thing_classes.append(data['category'])
+                    else:
+                        stuff_classes.append(data['category'])
+                except Exception as e:
+                    break
+        categories = {'thing': thing_classes, 'stuff': stuff_classes}
+        thing_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(thing_classes))]
+        stuff_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(stuff_classes))]
+        thing_dataset_id_to_contiguous_id = {x:x for x in range(len(thing_classes))}
+        stuff_dataset_id_to_contiguous_id = {x+len(thing_classes):x for x in range(len(stuff_classes))}
+
+        MetadataCatalog.get("panoseg").set(
+            thing_colors=thing_colors,
+            thing_classes=thing_classes,
+            thing_dataset_id_to_contiguous_id=thing_dataset_id_to_contiguous_id,
+            stuff_colors=stuff_colors,
+            stuff_classes=stuff_classes,
+            stuff_dataset_id_to_contiguous_id=stuff_dataset_id_to_contiguous_id,
+        )
+        model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(thing_classes + stuff_classes, is_eval=False)
+        metadata = MetadataCatalog.get('panoseg')
+        model.model.metadata = metadata
+        model.model.sem_seg_head.num_classes = len(thing_classes + stuff_classes)
+        return model, categories
+
+def load_embed_model(model_name_or_path, device='cuda'):
+    model = SentenceTransformer(model_name_or_path).to(device)
+    return model
+
+
+# ==========load model==========
+with open('./PITI_model_options.json', 'r') as f:
+    options = json.load(f)
+print('loading base model...')
+base_model_path = '/home/wgy/multimodal/tools/ckpt/base_mask.pt'
+base_model = load_draw_model(options['base_model'], base_model_path, device=device)
+
+print('loading sample model...')
+sample_model_path = '/home/wgy/multimodal/tools/ckpt/upsample_mask.pt'
+sample_model = load_draw_model(options['sample_model'], sample_model_path, device=device)
+
+seg_model_path = '/home/wgy/multimodal/tools/ckpt/model_state_dict_swint_51.2ap.pt'
+t = []
+t.append(transforms.Resize(512, interpolation=Image.BICUBIC))
+transform = transforms.Compose(t)
+
+categories_path = './id-category-color-embed.pkl'
+print('loading semseg model...')
+semseg_model, color_map = load_seg_model(model_path=seg_model_path, categories_path=categories_path, mode='sem', device=device)
+colorizer = Colorize(182)
+
+print('loading panoseg model...')
+panoseg_model, pano_categories = load_seg_model(model_path=seg_model_path, mode='pano', device=device)
+
+print('loading embedding model...')
+embed_model_name = 'SpanBERT/spanbert-large-cased'
+embed_model = load_embed_model(model_name_or_path=embed_model_name, device=device)
+print('loading completed')
+    # ==============================
+
 def re_draw(image_path, base_model, sample_model, output_path='./image_bank/', num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
     '''Use PITI to draw according to the given mask
 
@@ -183,99 +309,99 @@ def panoseg(image, model, transform, categories):
         items.sort()
         return items
 
-def load_draw_model(options, model_path, device='cuda'):
-    '''_summary_
+# def load_draw_model(options, model_path, device='cuda'):
+#     '''_summary_
 
-    :param options: _description_
-    :param model_path: _description_
-    :param device: _description_, defaults to 'cuda'
-    :return: _description_
-    '''
-    model_ckpt = torch.load(model_path, map_location='cpu')
-    model, _ = create_model_and_diffusion(**options)
-    model.load_state_dict(model_ckpt, strict=True)
-    return model.eval().to(device)
+#     :param options: _description_
+#     :param model_path: _description_
+#     :param device: _description_, defaults to 'cuda'
+#     :return: _description_
+#     '''
+#     model_ckpt = torch.load(model_path, map_location='cpu')
+#     model, _ = create_model_and_diffusion(**options)
+#     model.load_state_dict(model_ckpt, strict=True)
+#     return model.eval().to(device)
 
-def load_seg_model(model_path, conf_file=None, categories_path='./id-category-color-embed.pkl', mode='sem', device='cuda'):
-    '''load segmentation model
+# def load_seg_model(model_path, conf_file=None, categories_path='./id-category-color-embed.pkl', mode='sem', device='cuda'):
+#     '''load segmentation model
 
-    :param model_path: _description_
-    :param conf_file: _description_, defaults to None
-    :param categories_path: _description_, defaults to './id-category.jsonl'
-    :param mode: _description_, defaults to 'sem'
-    :param categories: _description_, defaults to {}
-    :param device: _description_, defaults to 'cuda'
-    :raises ValueError: _description_
-    :return: _description_
-    '''
-    if mode not in ['sem', 'pano']:
-        raise ValueError(f"Invalid mode: {mode}. Mode must be 'sem' or 'pano'.")
-    opt = load_opt(conf_file)
-    opt['WEIGHT'] = model_path
-    model = BaseModel(opt, build_model(opt)).from_pretrained(opt['WEIGHT']).eval().to(device)
-    if mode == 'sem':
-        stuff_classes = []
-        stuff_colors = []
-        stuff_dataset_id_to_contiguous_id = {}
+#     :param model_path: _description_
+#     :param conf_file: _description_, defaults to None
+#     :param categories_path: _description_, defaults to './id-category.jsonl'
+#     :param mode: _description_, defaults to 'sem'
+#     :param categories: _description_, defaults to {}
+#     :param device: _description_, defaults to 'cuda'
+#     :raises ValueError: _description_
+#     :return: _description_
+#     '''
+#     if mode not in ['sem', 'pano']:
+#         raise ValueError(f"Invalid mode: {mode}. Mode must be 'sem' or 'pano'.")
+#     opt = load_opt(conf_file)
+#     opt['WEIGHT'] = model_path
+#     model = BaseModel(opt, build_model(opt)).from_pretrained(opt['WEIGHT']).eval().to(device)
+#     if mode == 'sem':
+#         stuff_classes = []
+#         stuff_colors = []
+#         stuff_dataset_id_to_contiguous_id = {}
 
-        with open(categories_path, 'rb') as f:
-            index = 0
-            while True:
-                try:
-                    data = pickle.load(f)
-                    stuff_classes.append(data['category'])
-                    stuff_colors.append([data['id']] * 3)
-                    stuff_dataset_id_to_contiguous_id[index] = data['id']
-                    index += 1
-                except Exception as e:
-                    break
-        MetadataCatalog.get("semseg").set(
-            stuff_colors=stuff_colors,
-            stuff_classes=stuff_classes,
-            stuff_dataset_id_to_contiguous_id=stuff_dataset_id_to_contiguous_id,
-        )
-        model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(stuff_classes, is_eval=True)
-        metadata = MetadataCatalog.get('semseg')
-        model.model.metadata = metadata
-        model.model.sem_seg_head.num_classes = len(stuff_classes)
-        return model, stuff_dataset_id_to_contiguous_id
-    else:
-        thing_classes = []
-        stuff_classes = []
+#         with open(categories_path, 'rb') as f:
+#             index = 0
+#             while True:
+#                 try:
+#                     data = pickle.load(f)
+#                     stuff_classes.append(data['category'])
+#                     stuff_colors.append([data['id']] * 3)
+#                     stuff_dataset_id_to_contiguous_id[index] = data['id']
+#                     index += 1
+#                 except Exception as e:
+#                     break
+#         MetadataCatalog.get("semseg").set(
+#             stuff_colors=stuff_colors,
+#             stuff_classes=stuff_classes,
+#             stuff_dataset_id_to_contiguous_id=stuff_dataset_id_to_contiguous_id,
+#         )
+#         model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(stuff_classes, is_eval=True)
+#         metadata = MetadataCatalog.get('semseg')
+#         model.model.metadata = metadata
+#         model.model.sem_seg_head.num_classes = len(stuff_classes)
+#         return model, stuff_dataset_id_to_contiguous_id
+#     else:
+#         thing_classes = []
+#         stuff_classes = []
 
-        with open(categories_path, 'rb') as f:
-            while True:
-                try:
-                    data = pickle.load(f)
-                    if data['id'] < 90:
-                        thing_classes.append(data['category'])
-                    else:
-                        stuff_classes.append(data['category'])
-                except Exception as e:
-                    break
-        categories = {'thing': thing_classes, 'stuff': stuff_classes}
-        thing_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(thing_classes))]
-        stuff_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(stuff_classes))]
-        thing_dataset_id_to_contiguous_id = {x:x for x in range(len(thing_classes))}
-        stuff_dataset_id_to_contiguous_id = {x+len(thing_classes):x for x in range(len(stuff_classes))}
+#         with open(categories_path, 'rb') as f:
+#             while True:
+#                 try:
+#                     data = pickle.load(f)
+#                     if data['id'] < 90:
+#                         thing_classes.append(data['category'])
+#                     else:
+#                         stuff_classes.append(data['category'])
+#                 except Exception as e:
+#                     break
+#         categories = {'thing': thing_classes, 'stuff': stuff_classes}
+#         thing_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(thing_classes))]
+#         stuff_colors = [random_color(rgb=True, maximum=255).astype(np.int).tolist() for _ in range(len(stuff_classes))]
+#         thing_dataset_id_to_contiguous_id = {x:x for x in range(len(thing_classes))}
+#         stuff_dataset_id_to_contiguous_id = {x+len(thing_classes):x for x in range(len(stuff_classes))}
 
-        MetadataCatalog.get("panoseg").set(
-            thing_colors=thing_colors,
-            thing_classes=thing_classes,
-            thing_dataset_id_to_contiguous_id=thing_dataset_id_to_contiguous_id,
-            stuff_colors=stuff_colors,
-            stuff_classes=stuff_classes,
-            stuff_dataset_id_to_contiguous_id=stuff_dataset_id_to_contiguous_id,
-        )
-        model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(thing_classes + stuff_classes, is_eval=False)
-        metadata = MetadataCatalog.get('panoseg')
-        model.model.metadata = metadata
-        model.model.sem_seg_head.num_classes = len(thing_classes + stuff_classes)
-        return model, categories
+#         MetadataCatalog.get("panoseg").set(
+#             thing_colors=thing_colors,
+#             thing_classes=thing_classes,
+#             thing_dataset_id_to_contiguous_id=thing_dataset_id_to_contiguous_id,
+#             stuff_colors=stuff_colors,
+#             stuff_classes=stuff_classes,
+#             stuff_dataset_id_to_contiguous_id=stuff_dataset_id_to_contiguous_id,
+#         )
+#         model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(thing_classes + stuff_classes, is_eval=False)
+#         metadata = MetadataCatalog.get('panoseg')
+#         model.model.metadata = metadata
+#         model.model.sem_seg_head.num_classes = len(thing_classes + stuff_classes)
+#         return model, categories
 
-def load_embed_model(model_name_or_path, device='cuda'):
-    model = SentenceTransformer(model_name_or_path).to(device)
-    return model
+# def load_embed_model(model_name_or_path, device='cuda'):
+#     model = SentenceTransformer(model_name_or_path).to(device)
+#     return model
 
 def get_objs_from_caption(caption, coco_categories, embed_model, image=None, candi_objs=None, panoseg_model=None, pano_categories=None, transform=None, source='ic'):
     '''Extract objs and quantities from the given caption. 
