@@ -32,7 +32,7 @@ from tools.PITI.pretrained_diffusion.train_util import TrainLoop
 from tools.PITI.pretrained_diffusion.glide_util import sample
 import time
 from tqdm import tqdm
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification, TokenClassificationPipeline
 from layout_editor import editor
 
 args = parser()
@@ -71,7 +71,15 @@ if device == 'cuda':
 else:
     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
+print('loading pos tagger...')
+pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
+pos_model = AutoModelForTokenClassification.from_pretrained(pos_model_path)
+pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
+
+pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
+
 print('loading models completed')
+black_list = ['top']
 # ==============================
 
 def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
@@ -88,6 +96,7 @@ def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=10
 
     image = Image.open(image_path)
     label = image.convert("RGB").resize((256, 256), Image.NEAREST)
+    image = np.array(image)
     # label = image.convert("RGB")
     label_tensor = get_tensor()(label)
 
@@ -136,6 +145,7 @@ def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=10
             save_path = os.path.join(output_path, save_name)
             hr_img = 255. * rearrange((hr.cpu().numpy()+1.0)*0.5, 'c h w -> h w c')
             hr_img = Image.fromarray(hr_img.astype(np.uint8))
+            hr_img = hr_img.resize((image.shape[1], image.shape[0]))
             hr_img.save(save_path)
             index += 1    
 
@@ -241,37 +251,41 @@ def get_objs_from_caption(caption, coco_categories, map_file='./category2coco.js
         raise ValueError(f"Invalid mode: {source}. Source must be 'gt' or 'ic'.")
 
     target_objs = []
-    caption_objs = get_nouns(caption)
+    caption_objs = get_nouns(caption, pos_tagger)
     if source == 'gt':
         pano_objs = panoseg(image=image, categories=pano_categories)
         for obj in caption_objs:
-            coco_category, color = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
-            if coco_category in candi_objs:
-                data = {
-                    'obj': coco_category,
-                    'num': 0,
-                    'color': color
-                }
-                if obj['hasNum']:
-                    data['num'] = obj['num']
-                else:
-                    data['num'] = pano_objs.count(coco_category)
-                target_objs.append(data)
-        return target_objs
+            if obj['obj'].lower() not in black_list:
+                coco_category, color = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
+                if coco_category in candi_objs:
+                    data = {
+                        'obj': coco_category,
+                        'num': 0,
+                        'color': color
+                    }
+                    if obj['hasNum']:
+                        data['num'] = obj['num']
+                    else:
+                        data['num'] = pano_objs.count(coco_category)
+                    target_objs.append(data)
+        return target_objs, caption_objs
     else:
         for obj in caption_objs:
-            obj['obj'], _ = category_to_coco(classifier=classifier, category=obj['obj'], coco_categories=coco_categories, map_file=map_file)
+            if obj['obj'].lower() not in black_list:
+                obj['obj'], _ = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
         return caption_objs
 
 def inpaint(image, mask, kernel_size):
+    # mask = Image.fromarray(mask).convert('L')
     exp_mask = np.zeros_like(mask)
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
     exp_mask = cv2.dilate(mask, kernel, iterations=1)
     exp_mask = Image.fromarray(exp_mask).convert('L')
     inpaint_img = lama(image, exp_mask)
+    # inpaint_img = lama(image, mask)
     return inpaint_img
 
-def get_target_obj(image_path, mask, contains, kernel_size=40, output_path='./obj_mask/'):
+def get_target_obj(image_path, mask, contains, kernel_size=7, output_path='./obj_mask/'):
     '''从image中把mask中target_color的obj扣掉
     contains = [{'obj': 'bus', 'num': 3, 'color': [0, 128, 128]}]
     :param model: _description_
@@ -383,32 +397,38 @@ if __name__ == "__main__":
             mask_path = os.path.join(mask_dir, mask_name)
             mask_img.save(mask_path)
 
-            print('Extracting target objs from caption...')
-            target_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
+            try:
+                print('Extracting target objs from caption...')
+                target_objs, caption_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
 
-            if len(target_objs) != 0:
-                sample_data = {
-                    'name': image_name,
-                    'target': target_objs,
-                    'candi': candi_objs,
-                    'caption': caption
-                }
-                json.dump(sample_data, f_w, indent=2)
+                if len(target_objs) != 0:
+                    sample_data = {
+                        'name': image_name,
+                        'target': target_objs,
+                        # 'candi': candi_objs,
+                        'caption_objs': caption_objs,
+                        'caption': caption
+                    }
+                    json.dump(sample_data, f_w, indent=4)
 
-                print('Extracting target objs...')
-                obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, output_path=obj_mask_path)
-                obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
+                    print('Extracting target objs...')
+                    obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=20, output_path=obj_mask_path)
+                    obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
 
-                print('Adjusting layout...')
-                editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=9)
+                    print('Adjusting layout...')
+                    editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=9)
 
-                mask_list = os.listdir(mask_dir)
-                print('Generating new images...')
-                for item in tqdm(mask_list):
-                    mask_base_name = os.path.splitext(item)[0]
-                    mask_path = os.path.join(mask_dir, item)
-                    output_dir = os.path.join(os.path.join(gen_image_path, base_name))
-                    re_draw(image_path=mask_path, output_path=output_dir, num_samples=10)
+                    mask_list = os.listdir(mask_dir)
+                    print('Generating new images...')
+                    for item in tqdm(mask_list):
+                        mask_base_name = os.path.splitext(item)[0]
+                        mask_path = os.path.join(mask_dir, item)
+                        output_dir = os.path.join(os.path.join(gen_image_path, base_name))
+                        re_draw(image_path=mask_path, output_path=output_dir, num_samples=10)
+            except Exception as e:
+                print('--------error--------')
+                print(e)
+                print('---------------------')
 
 
 

@@ -32,3 +32,4 @@ nltk
 word2number
 simple-lama-inpainting
 openai
+flair

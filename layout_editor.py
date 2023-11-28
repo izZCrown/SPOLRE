@@ -78,6 +78,7 @@ def scaling(src_img, obj_info, multiple):
 # direction : 0以X轴对称翻转，>0以Y轴对称翻转，<0以X轴Y轴同时翻转
 def mirror(src_img, direction):
     dst_img = cv2.flip(src_img, direction)
+    # dst_img = cv2.flip(src_img, 0)
     # 查看移动是否合理
     # watch(src_img, dst_img)
     return dst_img
@@ -155,17 +156,19 @@ def obj_mask_change(obj):
     elif choice == REVOLVE:
         # print("旋转(REVOLVE)")
         # angle = int(random.uniform(0 + 1, 360 - 1))
-        angle = int(random.uniform(1, 90))
+        angle = random.randint(-10, 10)
         dst_dict["mask"] = revolve(src_mask, src_info, angle)
 
     elif choice == SCALING:
         # print("放缩(SCALING)")
-        multiple = multiple_list[int(random.uniform(0, len(multiple_list)))]
+        # multiple = multiple_list[int(random.uniform(0, len(multiple_list)))]
+        multiple = multiple_list[random.randint(0, len(multiple_list)-1)]
         dst_dict["mask"] = scaling(src_mask, src_info, multiple)
 
     elif choice == MIRROR:
         # print("镜像(MIRROR)")
-        direction = int(random.uniform(-3, 3))
+        # direction = int(random.uniform(-3, 3))
+        direction = random.randint(-1, 1)
         dst_dict["mask"] = mirror(src_mask, direction)
 
     dst_dict["info"] = read_obj_info(dst_dict["mask"])

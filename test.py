@@ -1,9 +1,5 @@
-import json
-
-map_file = './category2coco.json'
-with open(map_file, 'r') as f:
-    coco_map = json.load(f)
-print(coco_map)
-
-category = 'cup'
-print(category in coco_map.keys())
+from PIL import Image
+import numpy as np
+image = Image.open('/home/wgy/multimodal/MuMo/mask_bank/000000002592/000000002592-0.png')
+image = np.array(image)
+print(image.shape)
