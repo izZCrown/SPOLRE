@@ -193,7 +193,7 @@ def single_layout_generate(index, output_path, bg, obj_list, obj_num, change_tim
     cv2.imwrite(save_path, layout.astype(np.uint8))
 
 def editor(image_dir, output_path, step, gen_num):
-    for index in tqdm(range(gen_num)):
+    for index in range(gen_num):
         all_img = os.listdir(image_dir)
         bg_img = 'background.png'
         all_img.remove(bg_img)

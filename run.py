@@ -36,6 +36,8 @@ from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassificatio
 from layout_editor import editor
 
 args = parser()
+BLACKPIXEL = np.array([0, 0, 0])
+WHITEPIXEL = np.array([255, 255, 255])
 
 # ==========load model==========
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -275,17 +277,21 @@ def get_objs_from_caption(caption, coco_categories, map_file='./category2coco.js
                 obj['obj'], _ = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
         return caption_objs
 
-def inpaint(image, mask, kernel_size):
-    # mask = Image.fromarray(mask).convert('L')
-    exp_mask = np.zeros_like(mask)
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)
-    exp_mask = cv2.dilate(mask, kernel, iterations=1)
-    exp_mask = Image.fromarray(exp_mask).convert('L')
-    inpaint_img = lama(image, exp_mask)
-    # inpaint_img = lama(image, mask)
-    return inpaint_img
+def inpaint(image, mask):
+    return lama(image, mask)
 
-def get_target_obj(image_path, mask, contains, kernel_size=7, output_path='./obj_mask/'):
+def mask_dilate(ori_mask, bw_mask, target_color, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    exp_bw_mask = cv2.dilate(bw_mask, kernel, iteraions=1)
+    
+    if target_color != None:
+        for i in range(mask.shape[0]):
+            for j in range(mask.shape[1]):
+                if exp_bw_mask[i][j].tolist() == target_color:
+                    exp_bw_mask[i][j] = BLACKPIXEL
+    return Image.fromarray(exp_bw_mask).convert('L')
+
+def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./obj_mask/'):
     '''从image中把mask中target_color的obj扣掉
     contains = [{'obj': 'bus', 'num': 3, 'color': [0, 128, 128]}]
     :param model: _description_
@@ -295,8 +301,6 @@ def get_target_obj(image_path, mask, contains, kernel_size=7, output_path='./obj
     :param output_path: _description_, defaults to './'
     '''
     # 先获得要扣去obj的黑白mask，白色部分为要扣去的部分
-    black_pixel = np.array([0, 0, 0])
-    white_pixel = np.array([255, 255, 255])
     save_path = os.path.join(output_path, os.path.splitext(os.path.basename(image_path))[0])
     mkdir(save_path)
 
@@ -310,20 +314,22 @@ def get_target_obj(image_path, mask, contains, kernel_size=7, output_path='./obj
         for i in range(mask.shape[0]):
             for j in range(mask.shape[1]):
                 if mask[i][j].tolist() != target_color and mask[i][j].tolist() in colors:
-                    inpaint_mask[i][j] = white_pixel
+                    inpaint_mask[i][j] = WHITEPIXEL
                 else:
-                    inpaint_mask[i][j] = black_pixel
-        inpaint_img = inpaint(image=image, mask=inpaint_mask, kernel_size=kernel_size)
+                    inpaint_mask[i][j] = BLACKPIXEL
+        inpaint_mask = mask_dilate(ori_mask=mask, bw_mask=inpaint_mask, target_color=target_color, kernel_size=kernel_size)
+        inpaint_img = inpaint(image=image, mask=inpaint_mask)
         save_name = f'{target_obj}.png'
         inpaint_img.save(os.path.join(save_path, save_name))
     
     for i in range(mask.shape[0]):
         for j in range(mask.shape[1]):
             if mask[i][j].tolist() in colors:
-                inpaint_mask[i][j] = white_pixel
+                inpaint_mask[i][j] = WHITEPIXEL
             else:
-                inpaint_mask[i][j] = black_pixel
-    inpaint_img = inpaint(image=image, mask=inpaint_mask, kernel_size=kernel_size)
+                inpaint_mask[i][j] = BLACKPIXEL
+    inpaint_mask = mask_dilate(ori_mask=mask, bw_mask=inpaint_mask, target_color=None, kernel_size=kernel_size)
+    inpaint_img = inpaint(image=image, mask=inpaint_mask)
     save_name = 'background.png'
     inpaint_img.save(os.path.join(save_path, save_name))
     return save_path
@@ -381,6 +387,7 @@ if __name__ == "__main__":
         data_list = json.load(f_r)
 
     with open(target_objs_path, 'w') as f_w:
+        start_time = time.time()
         for key in tqdm(data_list.keys()):
             image_name = data_list[key]['img_id']
             base_name = os.path.splitext(image_name)[0]
@@ -420,15 +427,19 @@ if __name__ == "__main__":
 
                     mask_list = os.listdir(mask_dir)
                     print('Generating new images...')
-                    for item in tqdm(mask_list):
+                    for item in mask_list:
                         mask_base_name = os.path.splitext(item)[0]
                         mask_path = os.path.join(mask_dir, item)
                         output_dir = os.path.join(os.path.join(gen_image_path, base_name))
-                        re_draw(image_path=mask_path, output_path=output_dir, num_samples=10)
+                        re_draw(image_path=mask_path, output_path=output_dir, num_samples=1)
             except Exception as e:
                 print('--------error--------')
                 print(e)
                 print('---------------------')
+            end_time = time.time()
+            print(f'Total: {end_time - start_time}s')
+            start_time = end_time
+    print('Finish...')
 
 
 
