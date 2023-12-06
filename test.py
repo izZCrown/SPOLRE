@@ -1,60 +1,74 @@
-import cv2
-from PIL import Image
-from simple_lama_inpainting import SimpleLama
-lama = SimpleLama()
-import numpy as np
+# import stanza
+# from word2number import w2n
+# import json
+# nlp = stanza.Pipeline(lang='en', processors='tokenize,pos')  # 初始化英文NLP pipeline，包含分词和词性标注
 
-def inpaint(image, mask):
-    # mask = Image.fromarray(mask).convert('L')
-    # exp_mask = np.zeros_like(mask)
-    # kernel = np.ones((kernel_size, kernel_size), np.uint8)
-    # exp_mask = cv2.dilate(mask, kernel, iterations=1)
-    # exp_mask = Image.fromarray(exp_mask).convert('L')
-    inpaint_img = lama(image, exp_mask)
-    # inpaint_img = lama(image, mask)
-    return inpaint_img
+# def get_nouns(sentence, tagger):
+#     nouns = []
+#     target = 'NOUN'
+#     adjective = 'ADJ'
+#     tokens = tagger(sentence).sentences[0].words
 
+#     i = 0
+#     while i < len(tokens):
+#         data = {
+#             'obj': '',
+#             'num': 1,
+#             'hasNum': False
+#         }
+#         token = tokens[i]
+#         if (token.pos == adjective and i + 1 < len(tokens) and tokens[i+1].pos == target) or token.pos == target:
+#             noun = [token.text]
+#             obj = []
+#             if token.pos == target:
+#                 obj.append(token.text)
 
-ori_image_path = '//home/wgy/multimodal/MuMo/image_bank/000000010363.jpg'
-ori_mask_path = '/home/wgy/multimodal/MuMo/mask_bank/000000010363/000000010363-0.png'
+#             j = i + 1
+#             while j < len(tokens) and tokens[j].pos == target:
+#                 noun.append(tokens[j].text)
+#                 j += 1
+            
+#             noun_pharse = ' '.join(noun)
 
-ori_image = Image.open(ori_image_path)
-ori_image_np = np.array(ori_image)
+#             length = len(noun_pharse.split())
+#             print(tokens[i-1].text, tokens[i-1].pos)
+#             if i > 0 and (tokens[i-1].pos == 'NUM' or tokens[i-1].text.lower() in ['a', 'an']):
+#                 if tokens[i-1].pos == 'NUM':
+#                     count = w2n.word_to_num(tokens[i-1].text)
+#                 else:
+#                     count = 1
+#                 data['num'] = count
+#                 data['hasNum'] = True
+#             obj_pharse = ' '.join(obj)
+#             data['obj'] = obj_pharse
+#             nouns.append(data)
+#             i = j - 1
+#         i += 1
+#     return nouns
 
-ori_mask = Image.open(ori_mask_path)
-ori_mask_np = np.array(ori_mask)
+# with open('/home/wgy/multimodal/image_caption_1201.json', 'r') as f:
+#     data_list = json.load(f)
 
-black_pixel = np.array([0, 0, 0])
-white_pixel = np.array([255, 255, 255])
+#     for key in data_list.keys():
+#         # sentence = data_list[key]['caption']
+#         sentence = 'A dog is reaching up to grab a Frisbee in his mouth.'
+# # sentence = "there is a blacker table with two teddy bears bears and a book on it."
+#         print(sentence)
+#         print(get_nouns(sentence, nlp))
 
+path = '/home/wgy/multimodal/gen_image_1205'
 
-colors = [[128, 64, 0], [128, 128, 0]]
-target_color = colors[0]
+# list1 = os.listdir(path)
+# print(len(list1))
+import sys
+sys.path.append('./tools/PITI')
+sys.path.append('./tools/OpenSeeD')
+import json
+import os
+from transformers import AutoTokenizer, AutoModelForTokenClassification, TokenClassificationPipeline, pipeline
+from util import get_nouns, category_to_coco, list_image_files_recursively
+import torch
+import copy
+from tqdm import tqdm
 
-background = np.zeros_like(ori_image_np)
-
-for i in range(ori_image_np.shape[0]):
-    for j in range(ori_image_np.shape[1]):
-        if ori_mask_np[i][j].tolist() != target_color and ori_mask_np[i][j].tolist() in colors:
-            background[i][j] = white_pixel
-        else:
-            background[i][j] = black_pixel
-
-# exp_mask = np.zeros_like(background)
-kernel_size = 50
-kernel = np.ones((kernel_size, kernel_size), np.uint8)
-exp_mask = cv2.dilate(background, kernel, iterations=1)
-
-for i in range(ori_image_np.shape[0]):
-    for j in range(ori_image_np.shape[1]):
-        if ori_mask_np[i][j].tolist() == target_color:
-            exp_mask[i][j] = black_pixel
-        # else:
-        #     background[i][j] = black_pixel
-
-
-
-exp_mask = Image.fromarray(exp_mask).convert('L')
-inpaint_img = inpaint(ori_image, exp_mask)
-# inpaint_img.save('/home/wgy/multimodal/MuMo/test/final.png')
-inpaint_img.save('/home/wgy/multimodal/MuMo/test/mask.png')
+print(len(list_image_files_recursively(path)))

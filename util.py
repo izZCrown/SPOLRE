@@ -17,11 +17,23 @@ from tools.OpenSeeD.openseed import build_model
 import torch
 import pickle
 import json
+import blobfile as bf
 
 
 def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
+
+def list_image_files_recursively(data_dir):
+    results = []
+    for entry in sorted(bf.listdir(data_dir)):
+        full_path = bf.join(data_dir, entry)
+        ext = entry.split(".")[-1]
+        if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif"]:
+            results.append(full_path)
+        elif bf.isdir(full_path):
+            results.extend(list_image_files_recursively(full_path))
+    return results
 
 def load_config_dict_to_opt(opt, config_dict):
     if not isinstance(config_dict, dict):
@@ -105,10 +117,10 @@ class Colorize(object):
 #     return category, color
 
 def category_to_coco(classifier, category, coco_categories, map_file):
-    with open(map_file, 'r') as f:
-        coco_map = json.load(f)
-    if category in coco_map.keys():
-        coco_category = coco_map[category]
+    if category in map_file.keys():
+        coco_category = map_file[category]
+    # elif category[-1] == 's' and category[:-1] in map_file.keys():
+        # coco_category = map_file[category[:-1]]
     else:
         categories = []
         for item in coco_categories:
@@ -128,9 +140,9 @@ def category_to_coco(classifier, category, coco_categories, map_file):
             categories = output_labels
             output_labels = []
         coco_category = categories[0]
-        coco_map[category] = coco_category
-        with open(map_file, 'w') as f:
-            json.dump(coco_map, f, indent=4)
+        map_file[category] = coco_category
+        # with open(map_file, 'w') as f:
+            # json.dump(map_file, f, indent=4)
 
     coco_index = None
     for i, item in enumerate(coco_categories):
@@ -138,7 +150,7 @@ def category_to_coco(classifier, category, coco_categories, map_file):
             coco_index = i
             break
     coco_color = coco_categories[coco_index]['color']
-    return coco_category, coco_color
+    return coco_category, coco_color, map_file
 
 
 # def token_from_nltk(sentence):
@@ -226,11 +238,58 @@ def category_to_coco(classifier, category, coco_categories, map_file):
 #             i += 1
 #     return nouns
 
+# def get_nouns(sentence, tagger):
+#     nouns = []
+#     target = 'NOUN'
+#     adjective = 'ADJ'
+#     # targets = ['NN', 'NNS', 'NNP', 'NNPS']
+#     # adjectives = ['JJ', 'JJR', 'JJS']
+#     tokens = tagger(sentence).sentences[0].words
+
+#     i = 0
+#     while i < len(tokens):
+#         data = {
+#             'obj': '',
+#             'num': 1,
+#             'hasNum': False
+#         }
+#         token = tokens[i]
+#         if (token['entity'] in adjectives and i + 1 < len(tokens) and tokens[i+1]['entity'] in targets) or token['entity'] in targets:
+#             noun = [token['word']]
+#             obj = []
+#             if token['entity'] in targets:
+#                 obj.append(token['word'])
+
+#             j = i + 1
+#             while j < len(tokens) and tokens[j]['entity'] in targets:
+#                 noun.append(tokens[j]['word'])
+#                 obj.append(tokens[j]['word'])
+#                 j += 1
+            
+#             noun_pharse = ' '.join(noun)
+
+#             length = len(noun_pharse.split())
+#             if i > 0 and (tokens[i-length]['entity'] == 'CD' or tokens[i-length]['word'].lower() in ['a', 'an']):
+#                 if tokens[i-length]['entity'] == 'CD':
+#                     count = w2n.word_to_num(tokens[i-length]['word'])
+#                 else:
+#                     count = 1
+#                 data['num'] = count
+#                 data['hasNum'] = True
+#             # noun_pharse = noun_pharse.replace(' ##', '').replace('##', '')
+#             obj_pharse = ' '.join(obj)
+#             obj_pharse = obj_pharse.replace(' ##', '').replace('##', '')
+#             data['obj'] = obj_pharse
+#             nouns.append(data)
+#             i = j - 1
+#         i += 1
+#     return nouns
+
 def get_nouns(sentence, tagger):
     nouns = []
-    targets = ['NN', 'NNS', 'NNP', 'NNPS']
-    adjectives = ['JJ', 'JJR', 'JJS']
-    tokens = tagger(sentence)
+    target = 'NOUN'
+    adjective = 'ADJ'
+    tokens = tagger(sentence).sentences[0].words
 
     i = 0
     while i < len(tokens):
@@ -240,26 +299,30 @@ def get_nouns(sentence, tagger):
             'hasNum': False
         }
         token = tokens[i]
-        if (token['entity'] in adjectives and i + 1 < len(tokens) and tokens[i+1]['entity'] in targets) or token['entity'] in targets:
-            noun = [token['word']]
+        if (token.pos == adjective and i + 1 < len(tokens) and tokens[i+1].pos == target) or token.pos == target:
+            noun = [token.text]
+            obj = []
+            if token.pos == target:
+                obj.append(token.text)
 
             j = i + 1
-            while j < len(tokens) and tokens[j]['entity'] in targets:
-                noun.append(tokens[j]['word'])
+            while j < len(tokens) and tokens[j].pos == target:
+                noun.append(tokens[j].text)
+                obj.append(tokens[j].text)
                 j += 1
             
             noun_pharse = ' '.join(noun)
 
             length = len(noun_pharse.split())
-            if i > 0 and (tokens[i-length]['entity'] == 'CD' or tokens[i-length]['word'].lower() in ['a', 'an']):
-                if tokens[i-length]['entity'] == 'CD':
-                    count = w2n.word_to_num(tokens[i-length]['word'])
+            if i > 0 and (tokens[i-1].pos == 'NUM' or tokens[i-1].text.lower() in ['a', 'an']):
+                if tokens[i-1].pos == 'NUM':
+                    count = w2n.word_to_num(tokens[i-1].text)
                 else:
                     count = 1
                 data['num'] = count
                 data['hasNum'] = True
-            noun_pharse = noun_pharse.replace(' ##', '').replace('##', '')
-            data['obj'] = noun_pharse
+            obj_pharse = ' '.join(obj)
+            data['obj'] = obj_pharse
             nouns.append(data)
             i = j - 1
         i += 1

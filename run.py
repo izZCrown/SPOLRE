@@ -1,15 +1,16 @@
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 sys.path.append('./tools/PITI')
 sys.path.append('./tools/OpenSeeD')
 
-import os
 from argument import parser, print_args
 from einops import rearrange
 from PIL import Image, ImageChops
 import cv2
 import numpy as np
 np.random.seed(1)
-from util import mkdir, Colorize, category_to_coco, get_nouns, load_draw_model, load_seg_model, load_embed_model
+from util import mkdir, Colorize, category_to_coco, get_nouns, load_draw_model, load_seg_model, load_embed_model, list_image_files_recursively
 import torch
 from torchvision import transforms
 from tools.OpenSeeD.utils.arguments import load_opt_command
@@ -34,6 +35,10 @@ import time
 from tqdm import tqdm
 from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification, TokenClassificationPipeline
 from layout_editor import editor
+import traceback
+import copy
+import stanza
+
 
 args = parser()
 BLACKPIXEL = np.array([0, 0, 0])
@@ -74,15 +79,15 @@ else:
     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 print('loading pos tagger...')
-pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
-pos_model = AutoModelForTokenClassification.from_pretrained(pos_model_path)
-pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
+# pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
+# pos_model = AutoModelForTokenClassification.from_pretrained(pos_model_path)
+# pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
 
-pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
-
+# pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
+pos_tagger = stanza.Pipeline(lang='en', processors='tokenize,pos')
 print('loading models completed')
-black_list = ['top']
 # ==============================
+black_list = ['top']
 
 def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
     '''Use PITI to draw according to the given mask
@@ -232,8 +237,7 @@ def panoseg(image, categories):
         items.sort()
         return items
 
-
-def get_objs_from_caption(caption, coco_categories, map_file='./category2coco.json', image=None, candi_objs=None, pano_categories=None, source='ic'):
+def get_objs_from_caption(caption, coco_categories, map_file, image=None, candi_objs=None, pano_categories=None, source='ic'):
     '''Extract objs and quantities from the given caption. 
     The parameter with the default value of None is only used when source is 'gt'
 
@@ -252,42 +256,46 @@ def get_objs_from_caption(caption, coco_categories, map_file='./category2coco.js
     if source not in ['gt', 'ic']:
         raise ValueError(f"Invalid mode: {source}. Source must be 'gt' or 'ic'.")
 
-    target_objs = []
-    caption_objs = get_nouns(caption, pos_tagger)
-    if source == 'gt':
-        pano_objs = panoseg(image=image, categories=pano_categories)
-        for obj in caption_objs:
-            if obj['obj'].lower() not in black_list:
-                coco_category, color = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
-                if coco_category in candi_objs:
-                    data = {
-                        'obj': coco_category,
-                        'num': 0,
-                        'color': color
-                    }
-                    if obj['hasNum']:
-                        data['num'] = obj['num']
-                    else:
-                        data['num'] = pano_objs.count(coco_category)
-                    target_objs.append(data)
-        return target_objs, caption_objs
-    else:
-        for obj in caption_objs:
-            if obj['obj'].lower() not in black_list:
-                obj['obj'], _ = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
-        return caption_objs
+    with torch.no_grad():
+        target_objs = []
+        ori_target_objs = []
+        caption_objs = get_nouns(caption, pos_tagger)
+        if source == 'gt':
+            pano_objs = panoseg(image=image, categories=pano_categories)
+            for obj in caption_objs:
+                if obj['obj'].lower() not in black_list:
+                    coco_category, color, map_file = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
+                    if coco_category in candi_objs:
+                        data = {
+                            'obj': coco_category,
+                            'num': 0,
+                            'color': color
+                        }
+                        if obj['hasNum']:
+                            data['num'] = obj['num']
+                        else:
+                            data['num'] = pano_objs.count(coco_category)
+                        ori_target_objs.append(obj['obj'])
+                        target_objs.append(data)
+            return target_objs, ori_target_objs, map_file
+        else:
+            ori_objs = copy.deepcopy(caption_objs)
+            for obj in caption_objs:
+                if obj['obj'].lower() not in black_list:
+                    obj['obj'], _, map_file = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
+            return caption_objs, ori_objs, map_file
 
 def inpaint(image, mask):
     return lama(image, mask)
 
 def mask_dilate(ori_mask, bw_mask, target_color, kernel_size):
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
-    exp_bw_mask = cv2.dilate(bw_mask, kernel, iteraions=1)
+    exp_bw_mask = cv2.dilate(bw_mask, kernel, iterations=1)
     
     if target_color != None:
-        for i in range(mask.shape[0]):
-            for j in range(mask.shape[1]):
-                if exp_bw_mask[i][j].tolist() == target_color:
+        for i in range(ori_mask.shape[0]):
+            for j in range(ori_mask.shape[1]):
+                if ori_mask[i][j].tolist() == target_color:
                     exp_bw_mask[i][j] = BLACKPIXEL
     return Image.fromarray(exp_bw_mask).convert('L')
 
@@ -308,9 +316,9 @@ def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./ob
     # mask = np.array(Image.open(mask_path))
     objs = [item['obj'] for item in contains]
     colors = [item['color'] for item in contains]
-    inpaint_mask = np.zeros_like(mask)
 
     for target_obj, target_color in zip(objs, colors):
+        inpaint_mask = np.zeros_like(mask)
         for i in range(mask.shape[0]):
             for j in range(mask.shape[1]):
                 if mask[i][j].tolist() != target_color and mask[i][j].tolist() in colors:
@@ -322,6 +330,7 @@ def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./ob
         save_name = f'{target_obj}.png'
         inpaint_img.save(os.path.join(save_path, save_name))
     
+    inpaint_mask = np.zeros_like(mask)
     for i in range(mask.shape[0]):
         for j in range(mask.shape[1]):
             if mask[i][j].tolist() in colors:
@@ -358,129 +367,179 @@ def obj2mask(image_dir, contains, coco_categories):
 
 
 
+
+
 if __name__ == "__main__":
     coco_categories = []
-    # with open('/home/wgy/multimodal/MuMo/id-category-color-embed.pkl', 'rb') as f:
-    #     while True:
-    #         try:
-    #             data = pickle.load(f)
-    #             coco_categories.append(data)
-    #         except:
-    #             break
     with open('./id-category-color.jsonl', 'r') as f:
         for line in f:
             data = json.loads(line)
             coco_categories.append(data)
 
-    image_bank_path = './image_bank'
-    mask_bank_path = './mask_bank'
-    gen_image_path = './gen_image'
-    obj_mask_path = './obj_mask'
+    image_bank_path = '../images_1205'
+    mask_bank_path = '../mask_bank_1205'
+    gen_image_path = '../gen_image_1205'
+    obj_mask_path = '../obj_mask_1205'
 
     mkdir(mask_bank_path)
     mkdir(gen_image_path)
     mkdir(obj_mask_path)
 
-    caption_path = '/home/wgy/multimodal/MuMo/image_cation.json'
-    target_objs_path = '/home/wgy/multimodal/MuMo/target_objs.json'
+    caption_path = '../image_caption_1205.json'
+    # target_objs_path = '/home/wgy/multimodal/MuMo/target_objs.json'
+    target_objs_path = './target_objs_12050.jsonl'
+    map_file_path = './category2coco.json'
+    with open(map_file_path, 'r') as f:
+        map_file = json.load(f)
     with open(caption_path, 'r') as f_r:
         data_list = json.load(f_r)
 
     with open(target_objs_path, 'w') as f_w:
         start_time = time.time()
+        i = 0
         for key in tqdm(data_list.keys()):
-            image_name = data_list[key]['img_id']
-            base_name = os.path.splitext(image_name)[0]
-            mask_dir = os.path.join(mask_bank_path, base_name)
-            mkdir(mask_dir)
-            caption = data_list[key]['caption']
+            i += 1
+            if i % 4 == 0:
+                image_name = data_list[key]['img_id']
+                base_name = os.path.splitext(image_name)[0]
+                mask_dir = os.path.join(mask_bank_path, base_name)
+                mkdir(mask_dir)
+                caption = data_list[key]['caption']
 
-            image_path = os.path.join(image_bank_path, image_name)
-            image = Image.open(image_path)
-            candi_objs, mask = semseg(image=image, coco_categories=coco_categories)
-            mask = mask.astype(np.uint8)
-            mask_img = Image.fromarray(mask)
-            mask_name = base_name + '-0.png'
-            mask_path = os.path.join(mask_dir, mask_name)
-            mask_img.save(mask_path)
+                image_path = os.path.join(image_bank_path, image_name)
+                image = Image.open(image_path)
+                candi_objs, mask = semseg(image=image, coco_categories=coco_categories)
+                mask = mask.astype(np.uint8)
+                mask_img = Image.fromarray(mask)
+                mask_name = base_name + '-0.png'
+                mask_path = os.path.join(mask_dir, mask_name)
+                mask_img.save(mask_path)
 
-            try:
-                print('Extracting target objs from caption...')
-                target_objs, caption_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
+                try:
+                    print('Extracting target objs from caption...')
+                    target_objs, caption_objs, map_file = get_objs_from_caption(caption=caption, coco_categories=coco_categories, map_file=map_file, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
+                    print(f'target_objs: {target_objs}')
+                    print(f'caption_objs: {caption_objs}')
 
-                if len(target_objs) != 0:
-                    sample_data = {
-                        'name': image_name,
-                        'target': target_objs,
-                        # 'candi': candi_objs,
-                        'caption_objs': caption_objs,
-                        'caption': caption
-                    }
-                    json.dump(sample_data, f_w, indent=4)
 
-                    print('Extracting target objs...')
-                    obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=20, output_path=obj_mask_path)
-                    obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
+                    if len(target_objs) != 0:
+                        sample_data = {
+                            'name': image_name,
+                            'tar_objs': target_objs,
+                            # 'candi': candi_objs,
+                            'gt_objs': caption_objs,
+                            'gt': caption
+                        }
+                        # json.dump(sample_data, f_w, indent=4)
+                        f_w.write(json.dumps(sample_data) + '\n')
 
-                    print('Adjusting layout...')
-                    editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=9)
+                        print('Extracting target objs...')
+                        obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=70, output_path=obj_mask_path)
+                        obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
 
-                    mask_list = os.listdir(mask_dir)
-                    print('Generating new images...')
-                    for item in mask_list:
-                        mask_base_name = os.path.splitext(item)[0]
-                        mask_path = os.path.join(mask_dir, item)
-                        output_dir = os.path.join(os.path.join(gen_image_path, base_name))
-                        re_draw(image_path=mask_path, output_path=output_dir, num_samples=1)
-            except Exception as e:
-                print('--------error--------')
-                print(e)
-                print('---------------------')
-            end_time = time.time()
-            print(f'Total: {end_time - start_time}s')
-            start_time = end_time
+                        print('Adjusting layout...')
+                        editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=49)
+
+                        mask_list = os.listdir(mask_dir)
+                        print('Generating new images...')
+                        for item in tqdm(mask_list):
+                            mask_base_name = os.path.splitext(item)[0]
+                            mask_path = os.path.join(mask_dir, item)
+                            output_dir = os.path.join(os.path.join(gen_image_path, base_name))
+                            re_draw(image_path=mask_path, output_path=output_dir, num_samples=10)
+                except Exception:
+                    print('--------error--------')
+                    traceback.print_exc()
+                    print('---------------------')
+                end_time = time.time()
+                print(f'Total: {end_time - start_time}s')
+                start_time = end_time
+
+
+    # 用panoseg初筛一下生成的image
+    # =======================================
+    # directory = '/home/wgy/multimodal/gen_image_1205'
+
+    # all_files = list_image_files_recursively(directory)
+    # obj_dict = {}
+    # with open('./target_objs_1205.jsonl', 'r') as f:
+    #     for line in f:
+    #         data = json.loads(line)
+    #         obj_dict[data['name'].split('.')[0]] = [data['tar_objs'], data['gt_objs'], data['gt']]
+
+
+    # with open('./1205.jsonl', 'w') as f:
+    #     for item in tqdm(all_files):
+    #         base_name = os.path.basename(item)
+    #         cur_objs = obj_dict[base_name.split('-')[0]]
+    #         image = Image.open(item)
+    #         objs = panoseg(image=image, categories=pano_categories)
+    #         flag = True
+    #         tar_objs = cur_objs[0]
+    #         gt_objs = cur_objs[1]
+    #         gt = cur_objs[2]
+    #         for tar_obj in tar_objs:
+    #             obj_name = tar_obj['obj']
+    #             obj_num = tar_obj['num']
+
+    #             if obj_name not in objs or objs.count(obj_name) != obj_num:
+    #                 flag = False
+
+    #         if flag:
+    #             sample_data = {
+    #                 'imgid': base_name,
+    #                 'tar_objs': tar_objs,
+    #                 'gt_objs': gt_objs,
+    #                 'gt': gt
+    #             }
+    #             f.write(json.dumps(sample_data) + '\n')
+    # =======================================
+
+    # new_captions_path = './panoseg_ofa.jsonl'
+    # save_path = './ofa.jsonl'
+
+    # imgid_target_objs = {}
+    # imgid_caption_objs = {}
+    # imgid_caption = {}
+    # with open('/home/wgy/multimodal/MuMo/target_objs.jsonl', 'r') as f:
+    #     for line in f:
+    #         data = json.loads(line)
+    #         imgid = data['name'].split('.')[0]
+    #         target_objs = data['target']
+    #         caption_objs = data['caption_objs']
+    #         caption = data['caption']
+    #         imgid_target_objs[imgid] = target_objs
+    #         imgid_caption_objs[imgid] = caption_objs
+    #         imgid_caption[imgid] = caption
+
+    # with open(new_captions_path, 'r') as f_r, open(save_path, 'w') as f_w:
+    #     for line in tqdm(f_r):
+    #         data = json.loads(line)
+    #         imgid = data['imgid']
+    #         key = imgid.split('-')[0]
+    #         target_objs = imgid_target_objs[key]
+    #         gt_objs = imgid_caption_objs[key]
+    #         gt = imgid_caption[key]
+    #         gen_caption = data['ofa_caption']
+    #         gen_objs, gen_ori = get_objs_from_caption(caption=gen_caption, coco_categories=coco_categories, source='ic')
+    #         sample_data = {
+    #             'imgid': imgid,
+    #             'target_objs': target_objs,
+    #             'gen_objs': gen_objs,
+    #             'target_ori': gt_objs,
+    #             'gen_ori': gen_ori,
+    #             'gt': gt,
+    #             'gen_caption': gen_caption
+    #         }
+    #         f_w.write(json.dumps(sample_data) + '\n')
+    
+    # sentence = 'A kid in a camo shirt riding a skateboard down the street.'
+    # print(get_nouns(sentence=sentence, tagger=pos_tagger))
+    with open(map_file_path, 'w') as f:
+        json.dump(map_file, f, indent=4)
     print('Finish...')
 
 
-
-
-
-
-        
-        # for key in tqdm(data_list.keys()):
-        #     image_name = data_list[key]['img_id']
-        #     if image_name == '000000002592.jpg':
-        #         caption = data_list[key]['caption']
-
-        #         image_path = os.path.join(image_bank_path, image_name)
-        #         image = Image.open(image_path)
-        #         candi_objs, mask = semseg(image=image, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
-        #         # mask = Image.fromarray(mask.astype(np.uint8))
-        #         # mask_path = os.path.join(mask_bank_path, image_name)
-        #         # mask.save(mask_path)
-
-        #         target_objs = get_objs_from_caption(caption=caption, coco_categories=coco_categories, embed_model=embed_model, image=image, candi_objs=candi_objs, panoseg_model=panoseg_model, pano_categories=pano_categories, transform=transform, source='gt')
-
-        #         sample_data = {
-        #             'name': image_name,
-        #             'target': target_objs,
-        #             'candi': candi_objs
-        #         }
-        #         json.dump(sample_data, f_w, indent=4)
-
-        #         obj_image_path = get_target_obj(image_path=image_path, mask=mask.astype(np.uint8), contains=target_objs, output_path=output_path)
-        #         obj2mask(image_dir=obj_image_path, contains=target_objs, model=semseg_model, colorizer=colorizer, color_map=color_map, transform=transform, coco_categories=coco_categories)
-        #         break
-
-        # image_dir = '/home/wgy/multimodal/MuMo/gen_mask/000000002592'
-        # mask_list = os.listdir(image_dir)
-        # output_dir = './gen_image'
-
-        # for image_name in tqdm(mask_list):
-        #     base_name = os.path.splitext(image_name)[0]
-        #     image_path = os.path.join(image_dir, image_name)
-        #     output_path = os.path.join(output_dir, base_name)
-        #     re_draw(image_path=image_path, base_model=base_model, sample_model=sample_model, output_path=output_path, num_samples=10)
 
 
 

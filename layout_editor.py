@@ -77,8 +77,8 @@ def scaling(src_img, obj_info, multiple):
 
 # direction : 0以X轴对称翻转，>0以Y轴对称翻转，<0以X轴Y轴同时翻转
 def mirror(src_img, direction):
-    dst_img = cv2.flip(src_img, direction)
-    # dst_img = cv2.flip(src_img, 0)
+    # dst_img = cv2.flip(src_img, direction)
+    dst_img = cv2.flip(src_img, 1)
     # 查看移动是否合理
     # watch(src_img, dst_img)
     return dst_img
@@ -193,11 +193,11 @@ def single_layout_generate(index, output_path, bg, obj_list, obj_num, change_tim
     cv2.imwrite(save_path, layout.astype(np.uint8))
 
 def editor(image_dir, output_path, step, gen_num):
-    for index in range(gen_num):
-        all_img = os.listdir(image_dir)
-        bg_img = 'background.png'
-        all_img.remove(bg_img)
-        bg_img_path = os.path.join(image_dir, bg_img)
+    all_img = os.listdir(image_dir)
+    bg_img = 'background.png'
+    all_img.remove(bg_img)
+    bg_img_path = os.path.join(image_dir, bg_img)
+    obj_list = get_obj_img(image_dir=image_dir, image_list=all_img)
+    for index in tqdm(range(gen_num)):
         background = cv2.imread(bg_img_path)
-        obj_list = get_obj_img(image_dir=image_dir, image_list=all_img)
         single_layout_generate(index, output_path, background, obj_list, len(obj_list), step)
