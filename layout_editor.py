@@ -8,6 +8,7 @@ import torch
 from tqdm import tqdm
 import pickle as pk
 import copy
+from PIL import Image
 
 RAW = 0     # 原mask图
 TRANSLATE = 1   # 平移
@@ -197,7 +198,7 @@ def editor(image_dir, output_path, step, gen_num):
     bg_img = 'background.png'
     all_img.remove(bg_img)
     bg_img_path = os.path.join(image_dir, bg_img)
-    obj_list = get_obj_img(image_dir=image_dir, image_list=all_img)
     for index in tqdm(range(gen_num)):
         background = cv2.imread(bg_img_path)
+        obj_list = get_obj_img(image_dir=image_dir, image_list=all_img)
         single_layout_generate(index, output_path, background, obj_list, len(obj_list), step)

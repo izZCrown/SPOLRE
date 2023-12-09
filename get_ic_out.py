@@ -1,17 +1,20 @@
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import sys
 sys.path.append('./tools/PITI')
 sys.path.append('./tools/OpenSeeD')
 import json
-import os
 from transformers import AutoTokenizer, AutoModelForTokenClassification, TokenClassificationPipeline, pipeline
 from util import get_nouns, category_to_coco, list_image_files_recursively
 import torch
 import copy
 from tqdm import tqdm
-pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
-pos_model = AutoModelForTokenClassification.from_pretrained(pos_model_path)
-pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
-pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
+import stanza
+# pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
+# pos_model = AutoModelForTokenClassification.from_pretrained(pos_model_path)
+# pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
+# pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
+pos_tagger = stanza.Pipeline(lang='en', processors='tokenize,pos')
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0)
 black_list = ['top']
 
@@ -28,9 +31,9 @@ def get_objs_from_caption(caption, coco_categories, map_file):
         return caption_objs, ori_objs, map_file
 
 
-path = '../panoseg_final.jsonl'
-path1 = '/home/wgy/multimodal/MuMo/target_objs_1202.jsonl'
-save_path = '../all_info.jsonl'
+path = '/home/wgy/multimodal/caption_1207_5_filter_false.jsonl'
+path1 = '/home/wgy/multimodal/MuMo/target_objs_1207.jsonl'
+save_path = '../all_info_false.jsonl'
 
 coco_categories = []
 with open('./id-category-color.jsonl', 'r') as f:
@@ -69,7 +72,7 @@ with open(path, 'r') as f1, open(save_path, 'w') as f2:
         vinvl_caption = data['vinvl_caption']
         blip2_caption = data['blip2_caption']
         blip_caption = data['blip_caption']
-        git_caption = data['git_caption']
+        # git_caption = data['git_caption']
         ofa_caption = data['ofa_caption']
         vitgpt2_caption = data['vitgpt2_caption']
         tar_objs = id2tarobj[imgid.split('-')[0]]
@@ -78,8 +81,11 @@ with open(path, 'r') as f1, open(save_path, 'w') as f2:
         vinvl_objs, vinvl_ori_objs, map_file = get_objs_from_caption(caption=vinvl_caption, coco_categories=coco_categories, map_file=map_file)
         blip2_objs, blip2_ori_objs, map_file = get_objs_from_caption(caption=blip2_caption, coco_categories=coco_categories, map_file=map_file)
         blip_objs, blip_ori_objs, map_file = get_objs_from_caption(caption=blip_caption, coco_categories=coco_categories, map_file=map_file)
-        git_objs, git_ori_objs, map_file = get_objs_from_caption(caption=git_caption, coco_categories=coco_categories, map_file=map_file)
-        ofa_objs, ofa_ori_objs, map_file = get_objs_from_caption(caption=ofa_caption, coco_categories=coco_categories, map_file=map_file)
+        # git_objs, git_ori_objs, map_file = get_objs_from_caption(caption=git_caption, coco_categories=coco_categories, map_file=map_file)
+        try:
+            ofa_objs, ofa_ori_objs, map_file = get_objs_from_caption(caption=ofa_caption, coco_categories=coco_categories, map_file=map_file)
+        except:
+            ofa_objs, ofa_ori_objs = [], []
         vitgpt2_objs, vitgpt2_ori_objs, map_file = get_objs_from_caption(caption=vitgpt2_caption, coco_categories=coco_categories, map_file=map_file)
         sample_data = {
             'id': imgid,
@@ -99,9 +105,9 @@ with open(path, 'r') as f1, open(save_path, 'w') as f2:
             'blip_ori_objs': blip_ori_objs,
             'blip': blip_caption,
 
-            'git_objs': git_objs,
-            'git_ori_objs': git_ori_objs,
-            'git': git_caption,
+            # 'git_objs': git_objs,
+            # 'git_ori_objs': git_ori_objs,
+            # 'git': git_caption,
 
             'ofa_objs': ofa_objs,
             'ofa_ori_objs': ofa_ori_objs,
