@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import sys
 sys.path.append('./tools/PITI')
 sys.path.append('./tools/OpenSeeD')
@@ -459,17 +459,17 @@ if __name__ == "__main__":
 
     # 用panoseg初筛一下生成的image
     # =======================================
-    directory = '../gen_image_1207'
+    directory = '../gen_image_final'
 
     all_files = list_image_files_recursively(directory)
     obj_dict = {}
-    with open('./target_objs_1207.jsonl', 'r') as f:
+    with open('./target_objs_ablation.jsonl', 'r') as f:
         for line in f:
             data = json.loads(line)
             obj_dict[data['name'].split('.')[0]] = [data['tar_objs'], data['gt_objs'], data['gt']]
 
 
-    with open('./check_1207.jsonl', 'w') as f:
+    with open('./check_final.jsonl', 'w') as f:
         for item in tqdm(all_files):
             base_name = os.path.basename(item)
             cur_objs = obj_dict[base_name.split('-')[0]]
@@ -479,19 +479,23 @@ if __name__ == "__main__":
             tar_objs = cur_objs[0]
             gt_objs = cur_objs[1]
             gt = cur_objs[2]
+            tar_objs_no_num = []
             for tar_obj in tar_objs:
                 obj_name = tar_obj['obj']
+                tar_objs_no_num.append(obj_name)
                 obj_num = tar_obj['num']
 
                 if obj_name not in objs or objs.count(obj_name) != obj_num:
                     flag = False
-
+            candi_objs = []
+            for obj in objs:
+                if obj not in candi_objs and obj not in tar_objs_no_num:
+                    candi_objs.append(obj)
             sample_data = {
                 'imgid': base_name,
                 'flag': flag,
-                # 'tar_objs': tar_objs,
-                # 'gt_objs': gt_objs,
-                'gt': gt
+                'tar_objs': tar_objs_no_num,
+                'candi_objs': candi_objs
             }
             f.write(json.dumps(sample_data) + '\n')
     # =======================================

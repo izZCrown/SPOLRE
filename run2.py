@@ -4,36 +4,36 @@ import sys
 sys.path.append('./tools/PITI')
 sys.path.append('./tools/OpenSeeD')
 
-from argument import parser, print_args
+from argument import parser
 from einops import rearrange
-from PIL import Image, ImageChops
+from PIL import Image
 import cv2
 import numpy as np
 np.random.seed(1)
 from util import mkdir, Colorize, category_to_coco, get_nouns, load_draw_model, load_seg_model, load_embed_model, list_image_files_recursively
 import torch
 from torchvision import transforms
-from tools.OpenSeeD.utils.arguments import load_opt_command
-from detectron2.data import MetadataCatalog
-from detectron2.utils.colormap import random_color
-from tools.OpenSeeD.openseed.BaseModel import BaseModel
-from tools.OpenSeeD.openseed import build_model
-from tools.OpenSeeD.utils.visualizer import Visualizer
+# from tools.OpenSeeD.utils.arguments import load_opt_command
+# from detectron2.data import MetadataCatalog
+# from detectron2.utils.colormap import random_color
+# from tools.OpenSeeD.openseed.BaseModel import BaseModel
+# from tools.OpenSeeD.openseed import build_model
+# from tools.OpenSeeD.utils.visualizer import Visualizer
 import json
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 import pickle
 from simple_lama_inpainting import SimpleLama
 lama = SimpleLama()
 
-from tools.PITI.pretrained_diffusion import dist_util, logger
-from torchvision.utils import make_grid
-from tools.PITI.pretrained_diffusion.script_util import create_model_and_diffusion
+# from tools.PITI.pretrained_diffusion import dist_util, logger
+# from torchvision.utils import make_grid
+# from tools.PITI.pretrained_diffusion.script_util import create_model_and_diffusion
 from tools.PITI.pretrained_diffusion.image_datasets_mask import get_tensor
-from tools.PITI.pretrained_diffusion.train_util import TrainLoop
+# from tools.PITI.pretrained_diffusion.train_util import TrainLoop
 from tools.PITI.pretrained_diffusion.glide_util import sample
 import time
 from tqdm import tqdm
-from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification, TokenClassificationPipeline
+from transformers import pipeline
 from layout_editor import editor
 import traceback
 import copy
@@ -376,18 +376,18 @@ if __name__ == "__main__":
             data = json.loads(line)
             coco_categories.append(data)
 
-    image_bank_path = '../images_1205'
-    mask_bank_path = '../mask_bank_1207'
-    gen_image_path = '../gen_image_1207'
-    obj_mask_path = '../obj_mask_1207'
+    image_bank_path = '../images_1210'
+    mask_bank_path = '../mask_bank_1210'
+    gen_image_path = '../gen_image_1210'
+    obj_mask_path = '../obj_mask_1210'
 
     mkdir(mask_bank_path)
     mkdir(gen_image_path)
     mkdir(obj_mask_path)
 
-    caption_path = '../image_caption_1205.json'
+    caption_path = '../image_caption_1210.json'
     # target_objs_path = '/home/wgy/multimodal/MuMo/target_objs.json'
-    target_objs_path = './target_objs_12072.jsonl'
+    target_objs_path = './target_objs_1210_0.jsonl'
     map_file_path = './category2coco.json'
     with open(map_file_path, 'r') as f:
         map_file = json.load(f)
@@ -399,9 +399,9 @@ if __name__ == "__main__":
         i = 0
         for key in tqdm(data_list.keys()):
             i += 1
-            if i % 6 == 2:
+            if i % 3 == 0:
                 image_name = data_list[key]['img_id']
-            # if image_name == '000000002592.jpg':
+                # if image_name == '000000002592.jpg':
                 base_name = os.path.splitext(image_name)[0]
                 mask_dir = os.path.join(mask_bank_path, base_name)
                 mkdir(mask_dir)
@@ -439,7 +439,7 @@ if __name__ == "__main__":
                         obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
 
                         print('Adjusting layout...')
-                        editor(image_dir=obj_image_path, output_path=mask_dir, step=10, gen_num=49)
+                        editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=9)
 
                         mask_list = os.listdir(mask_dir)
                         print('Generating new images...')

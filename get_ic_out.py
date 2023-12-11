@@ -31,9 +31,9 @@ def get_objs_from_caption(caption, coco_categories, map_file):
         return caption_objs, ori_objs, map_file
 
 
-path = '/home/wgy/multimodal/caption_1207_5_filter_false.jsonl'
-path1 = '/home/wgy/multimodal/MuMo/target_objs_1207.jsonl'
-save_path = '../all_info_false.jsonl'
+path = '/home/wgy/multimodal/caption_final.jsonl'
+path1 = '/home/wgy/multimodal/MuMo/check_final_filter.jsonl'
+save_path = '../all_info_final.jsonl'
 
 coco_categories = []
 with open('./id-category-color.jsonl', 'r') as f:
@@ -46,13 +46,13 @@ with open(map_file_path, 'r') as f:
     map_file = json.load(f)
 
 id2tarobj = {}
-id2gtobj = {}
+id2meltobj = {}
 id2gt = {}
 
 with open(path1, 'r') as f:
     for line in f:
         data = json.loads(line)
-        id = data['name'].split('.')[0]
+        id = data['imgid']
         tar_obj = []
         tar_objs = data['tar_objs']
         for item in tar_objs:
@@ -62,7 +62,7 @@ with open(path1, 'r') as f:
             }
             tar_obj.append(sample_data)
         id2tarobj[id] = tar_obj
-        id2gtobj[id] = data['gt_objs']
+        id2meltobj[id] = data['candi_objs']
         id2gt[id] = data['gt']
 
 with open(path, 'r') as f1, open(save_path, 'w') as f2:
@@ -72,52 +72,77 @@ with open(path, 'r') as f1, open(save_path, 'w') as f2:
         vinvl_caption = data['vinvl_caption']
         blip2_caption = data['blip2_caption']
         blip_caption = data['blip_caption']
-        # git_caption = data['git_caption']
+        git_caption = data['git_caption']
         ofa_caption = data['ofa_caption']
         vitgpt2_caption = data['vitgpt2_caption']
-        tar_objs = id2tarobj[imgid.split('-')[0]]
-        gt_objs = id2gtobj[imgid.split('-')[0]]
-        gt = id2gt[imgid.split('-')[0]]
-        vinvl_objs, vinvl_ori_objs, map_file = get_objs_from_caption(caption=vinvl_caption, coco_categories=coco_categories, map_file=map_file)
-        blip2_objs, blip2_ori_objs, map_file = get_objs_from_caption(caption=blip2_caption, coco_categories=coco_categories, map_file=map_file)
-        blip_objs, blip_ori_objs, map_file = get_objs_from_caption(caption=blip_caption, coco_categories=coco_categories, map_file=map_file)
-        # git_objs, git_ori_objs, map_file = get_objs_from_caption(caption=git_caption, coco_categories=coco_categories, map_file=map_file)
-        try:
-            ofa_objs, ofa_ori_objs, map_file = get_objs_from_caption(caption=ofa_caption, coco_categories=coco_categories, map_file=map_file)
-        except:
-            ofa_objs, ofa_ori_objs = [], []
-        vitgpt2_objs, vitgpt2_ori_objs, map_file = get_objs_from_caption(caption=vitgpt2_caption, coco_categories=coco_categories, map_file=map_file)
-        sample_data = {
-            'id': imgid,
-            'tar_objs': tar_objs,
-            'ori_objs': gt_objs,
-            'gt': gt,
+        azure_caption = data['azure_caption']
+        if imgid in id2gt.keys():
+            tar_objs = id2tarobj[imgid]
+            melt_objs = id2meltobj[imgid]
+            gt = id2gt[imgid]
+            try:
+                vinvl_objs, vinvl_ori_objs, map_file = get_objs_from_caption(caption=vinvl_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                vinvl_objs, vinvl_ori_objs = [], []
+            try:
+                blip2_objs, blip2_ori_objs, map_file = get_objs_from_caption(caption=blip2_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                blip2_objs, blip2_ori_objs = [], []
+            try:
+                blip_objs, blip_ori_objs, map_file = get_objs_from_caption(caption=blip_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                blip_objs, blip_ori_objs = [], []
+            try:
+                git_objs, git_ori_objs, map_file = get_objs_from_caption(caption=git_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                git_objs, git_ori_objs = [], []
+            try:
+                ofa_objs, ofa_ori_objs, map_file = get_objs_from_caption(caption=ofa_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                ofa_objs, ofa_ori_objs = [], []
+            try:
+                vitgpt2_objs, vitgpt2_ori_objs, map_file = get_objs_from_caption(caption=vitgpt2_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                vitgpt2_objs, vitgpt2_ori_objs = [], []
+            try:
+                azure_objs, azure_ori_objs, map_file = get_objs_from_caption(caption=azure_caption, coco_categories=coco_categories, map_file=map_file)
+            except:
+                azure_objs, azure_ori_objs = [], []
+            sample_data = {
+                'id': imgid,
+                'tar_objs': tar_objs,
+                'melt_objs': melt_objs,
+                'gt': gt,
 
-            'vinvl_objs': vinvl_objs,
-            'vinvl_ori_objs': vinvl_ori_objs,
-            'vinvl': vinvl_caption,
+                'vinvl_objs': vinvl_objs,
+                'vinvl_ori_objs': vinvl_ori_objs,
+                'vinvl': vinvl_caption,
 
-            'blip2_objs': blip2_objs,
-            'blip2_ori_objs': blip2_ori_objs,
-            'blip2': blip2_caption,
+                'blip2_objs': blip2_objs,
+                'blip2_ori_objs': blip2_ori_objs,
+                'blip2': blip2_caption,
 
-            'blip_objs': blip_objs,
-            'blip_ori_objs': blip_ori_objs,
-            'blip': blip_caption,
+                'blip_objs': blip_objs,
+                'blip_ori_objs': blip_ori_objs,
+                'blip': blip_caption,
 
-            # 'git_objs': git_objs,
-            # 'git_ori_objs': git_ori_objs,
-            # 'git': git_caption,
+                'git_objs': git_objs,
+                'git_ori_objs': git_ori_objs,
+                'git': git_caption,
 
-            'ofa_objs': ofa_objs,
-            'ofa_ori_objs': ofa_ori_objs,
-            'ofa': ofa_caption,
+                'ofa_objs': ofa_objs,
+                'ofa_ori_objs': ofa_ori_objs,
+                'ofa': ofa_caption,
 
-            'vitgpt2_objs': vitgpt2_objs,
-            'vitgpt2_ori_objs': vitgpt2_ori_objs,
-            'vitgpt2': vitgpt2_caption,
-        }
-        f2.write(json.dumps(sample_data) + '\n')
+                'vitgpt2_objs': vitgpt2_objs,
+                'vitgpt2_ori_objs': vitgpt2_ori_objs,
+                'vitgpt2': vitgpt2_caption,
+
+                'azure_objs': azure_objs,
+                'azure_ori_objs': azure_ori_objs,
+                'azure': azure_caption,
+            }
+            f2.write(json.dumps(sample_data) + '\n')
 
 with open(map_file_path, 'w') as f:
     json.dump(map_file, f, indent=4)
