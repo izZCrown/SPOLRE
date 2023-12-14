@@ -1,29 +1,14 @@
-import numpy as np
 from PIL import Image
+import os
 
+img_dir = '/home/wgy/multimodal/MuMo/test/images'
+list1 = os.listdir(img_dir)
 
-image_path = '/home/wgy/multimodal/MuMo/image_bank/000000002592.jpg'
-mask_path = '/home/wgy/multimodal/MuMo/mask_bank/000000002592.jpg'
+save_path = '/home/wgy/multimodal/MuMo/test/numerr.png'
 
-image = Image.open(image_path)
-mask = Image.open(mask_path)
-black_pixel = np.array([0, 0, 0])
-white_pixel = np.array([255, 255, 255])
-target = [128, 64, 64]
-
-new_image = np.array(image)
-mask = np.array(mask)
-inpaint_mask = np.zeros_like(mask)
-
-for i in range(mask.shape[0]):
-    for j in range(mask.shape[1]):
-        if mask[i][j].tolist() == target:
-            inpaint_mask[i][j] = white_pixel
-            new_image[i][j] = white_pixel
-        else:
-            inpaint_mask[i][j] = black_pixel
-
-inpaint_mask = Image.fromarray(inpaint_mask)
-new_image = Image.fromarray(new_image)
-inpaint_mask.save('./mask.png')
-new_image.show('./new.png')
+for item in list1:
+    img_path = os.path.join(img_dir, item)
+    print(img_path)
+    image = Image.open(img_path)
+    image.save(save_path)
+    input1 = input('enter: ')

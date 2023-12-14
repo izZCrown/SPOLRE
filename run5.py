@@ -60,23 +60,23 @@ t = []
 t.append(transforms.Resize(512, interpolation=Image.BICUBIC))
 transform = transforms.Compose(t)
 
-categories_path = './id-category-color.jsonl'
-print('loading semseg model...')
-semseg_model, color_map = load_seg_model(model_path=seg_model_path, categories_path=categories_path, mode='sem', device=device)
-colorizer = Colorize(182)
+# categories_path = './id-category-color.jsonl'
+# print('loading semseg model...')
+# semseg_model, color_map = load_seg_model(model_path=seg_model_path, categories_path=categories_path, mode='sem', device=device)
+# colorizer = Colorize(182)
 
 print('loading panoseg model...')
-panoseg_model, pano_categories = load_seg_model(model_path=seg_model_path, mode='pano', device=device)
+# panoseg_model, pano_categories = load_seg_model(model_path=seg_model_path, mode='pano', device=device)
 
 # print('loading embedding model...')
 # embed_model_name = 'SpanBERT/spanbert-large-cased'
 # embed_model = load_embed_model(model_name_or_path=embed_model_name, device=device)
 
 print('loading classifier...')
-if device == 'cuda':
-    classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0)
-else:
-    classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+# if device == 'cuda':
+#     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0)
+# else:
+#     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 print('loading pos tagger...')
 # pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
@@ -84,7 +84,7 @@ print('loading pos tagger...')
 # pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
 
 # pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
-pos_tagger = stanza.Pipeline(lang='en', processors='tokenize,pos')
+# pos_tagger = stanza.Pipeline(lang='en', processors='tokenize,pos')
 print('loading models completed')
 # ==============================
 black_list = ['top']
@@ -113,6 +113,8 @@ def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=10
         samples_lr =sample(
             glide_model=base_model,
             glide_options=options['base_model'],
+            # side_x=256,
+            # side_y=256,
             side_x=64,
             side_y=64,
             prompt=model_kwargs,
@@ -156,214 +158,214 @@ def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=10
             hr_img.save(save_path)
             index += 1    
 
-def semseg(image, coco_categories):
-    '''Semantic segmentation and generation of RGB masks
+# def semseg(image, coco_categories):
+#     '''Semantic segmentation and generation of RGB masks
 
-    :param image_path: _description_
-    :param model: _description_
-    :param colorizer: _description_
-    :param color_map: _description_
-    :param transform: _description_
-    :param output_path: _description_, defaults to './mask_bank'
-    '''
-    # mkdir(output_path)
+#     :param image_path: _description_
+#     :param model: _description_
+#     :param colorizer: _description_
+#     :param color_map: _description_
+#     :param transform: _description_
+#     :param output_path: _description_, defaults to './mask_bank'
+#     '''
+#     # mkdir(output_path)
 
-    with torch.no_grad():
-        # image = Image.open(image_path).convert("RGB")
-        width = image.size[0]
-        height = image.size[1]
-        image = transform(image)
-        image = np.asarray(image)
-        images = torch.from_numpy(image.copy()).permute(2,0,1).cuda()
+#     with torch.no_grad():
+#         # image = Image.open(image_path).convert("RGB")
+#         width = image.size[0]
+#         height = image.size[1]
+#         image = transform(image)
+#         image = np.asarray(image)
+#         images = torch.from_numpy(image.copy()).permute(2,0,1).cuda()
 
-        batch_inputs = [{'image': images, 'height': height, 'width': width}]
-        outputs = semseg_model.forward(batch_inputs,inference_task="sem_seg")
-        matrix = outputs[-1]['sem_seg'].max(0)[1].cpu()
+#         batch_inputs = [{'image': images, 'height': height, 'width': width}]
+#         outputs = semseg_model.forward(batch_inputs,inference_task="sem_seg")
+#         matrix = outputs[-1]['sem_seg'].max(0)[1].cpu()
 
-        gray_mask = Image.new("RGB", (matrix.shape[1], matrix.shape[0]))
-        pixels = gray_mask.load()
-        objects = []
-        for i in range(matrix.shape[0]):
-            for j in range(matrix.shape[1]):
-                color_index = matrix[i, j].item()
-                pixels[j, i] = tuple([color_map[color_index]] * 3)
-                current_obj = coco_categories[color_index]['category']
-                if current_obj not in objects:
-                    objects.append(current_obj)
+#         gray_mask = Image.new("RGB", (matrix.shape[1], matrix.shape[0]))
+#         pixels = gray_mask.load()
+#         objects = []
+#         for i in range(matrix.shape[0]):
+#             for j in range(matrix.shape[1]):
+#                 color_index = matrix[i, j].item()
+#                 pixels[j, i] = tuple([color_map[color_index]] * 3)
+#                 current_obj = coco_categories[color_index]['category']
+#                 if current_obj not in objects:
+#                     objects.append(current_obj)
 
-        rgb_mask = gray_mask.convert('L')
-        rgb_mask = np.array(rgb_mask)
-        rgb_mask = np.transpose(colorizer(rgb_mask), (1,2,0))
-        # rgb_mask = Image.fromarray(rgb_mask.astype(np.uint8))
-        # ori_name = os.path.basename(image_path)
-        # save_name = os.path.splitext(ori_name)[0] + '-' + str(0) + '.png'
-        # save_path = os.path.join(output_path, save_name)
-        # rgb_mask.save(save_path)
+#         rgb_mask = gray_mask.convert('L')
+#         rgb_mask = np.array(rgb_mask)
+#         rgb_mask = np.transpose(colorizer(rgb_mask), (1,2,0))
+#         # rgb_mask = Image.fromarray(rgb_mask.astype(np.uint8))
+#         # ori_name = os.path.basename(image_path)
+#         # save_name = os.path.splitext(ori_name)[0] + '-' + str(0) + '.png'
+#         # save_path = os.path.join(output_path, save_name)
+#         # rgb_mask.save(save_path)
 
-        return objects, rgb_mask
+#         return objects, rgb_mask
             
-def panoseg(image, categories):
-    '''Panoptic segmentation to extract objects
+# def panoseg(image, categories):
+#     '''Panoptic segmentation to extract objects
 
-    :param image_path: _description_
-    :param model: _description_
-    :param transform: _description_
-    :param categories: _description_
-    :return: _description_
-    '''
-    with torch.no_grad():
-        # image_ori = Image.open(image_path).convert("RGB")
-        image_ori = image.convert("RGB")
-        width = image_ori.size[0]
-        height = image_ori.size[1]
-        image = transform(image_ori)
-        image = np.asarray(image)
-        image_ori = np.asarray(image_ori)
-        images = torch.from_numpy(image.copy()).permute(2,0,1).cuda()
+#     :param image_path: _description_
+#     :param model: _description_
+#     :param transform: _description_
+#     :param categories: _description_
+#     :return: _description_
+#     '''
+#     with torch.no_grad():
+#         # image_ori = Image.open(image_path).convert("RGB")
+#         image_ori = image.convert("RGB")
+#         width = image_ori.size[0]
+#         height = image_ori.size[1]
+#         image = transform(image_ori)
+#         image = np.asarray(image)
+#         image_ori = np.asarray(image_ori)
+#         images = torch.from_numpy(image.copy()).permute(2,0,1).cuda()
 
-        batch_inputs = [{'image': images, 'height': height, 'width': width}]
-        outputs = panoseg_model.forward(batch_inputs)
+#         batch_inputs = [{'image': images, 'height': height, 'width': width}]
+#         outputs = panoseg_model.forward(batch_inputs)
 
-        seg_info = outputs[-1]['panoptic_seg'][1]
+#         seg_info = outputs[-1]['panoptic_seg'][1]
 
-        items = []
-        for item in seg_info:
-            if item['isthing']:
-                category_id = item['category_id']
-                items.append(categories['thing'][category_id])
-            else:
-                category_id = item['category_id'] - len(categories['thing'])
-                items.append(categories['stuff'][category_id])
-        items.sort()
-        return items
+#         items = []
+#         for item in seg_info:
+#             if item['isthing']:
+#                 category_id = item['category_id']
+#                 items.append(categories['thing'][category_id])
+#             else:
+#                 category_id = item['category_id'] - len(categories['thing'])
+#                 items.append(categories['stuff'][category_id])
+#         items.sort()
+#         return items
 
-def get_objs_from_caption(caption, coco_categories, map_file, image=None, candi_objs=None, pano_categories=None, source='ic'):
-    '''Extract objs and quantities from the given caption. 
-    The parameter with the default value of None is only used when source is 'gt'
+# # def get_objs_from_caption(caption, coco_categories, map_file, image=None, candi_objs=None, pano_categories=None, source='ic'):
+#     '''Extract objs and quantities from the given caption. 
+#     The parameter with the default value of None is only used when source is 'gt'
 
-    :param caption: _description_
-    :param coco_categories: _description_
-    :param embed_model: _description_
-    :param image_path: _description_, defaults to None
-    :param candi_objs: _description_, defaults to None
-    :param panoseg_model: _description_, defaults to None
-    :param pano_categories: _description_, defaults to None
-    :param transform: _description_, defaults to None
-    :param source: _description_, defaults to 'ic'
-    :raises ValueError: _description_
-    :return: when source is 'gt': objs and num; when source is 'ic': objs, num and hasNum
-    '''
-    if source not in ['gt', 'ic']:
-        raise ValueError(f"Invalid mode: {source}. Source must be 'gt' or 'ic'.")
+#     :param caption: _description_
+#     :param coco_categories: _description_
+#     :param embed_model: _description_
+#     :param image_path: _description_, defaults to None
+#     :param candi_objs: _description_, defaults to None
+#     :param panoseg_model: _description_, defaults to None
+#     :param pano_categories: _description_, defaults to None
+#     :param transform: _description_, defaults to None
+#     :param source: _description_, defaults to 'ic'
+#     :raises ValueError: _description_
+#     :return: when source is 'gt': objs and num; when source is 'ic': objs, num and hasNum
+#     '''
+#     if source not in ['gt', 'ic']:
+#         raise ValueError(f"Invalid mode: {source}. Source must be 'gt' or 'ic'.")
 
-    with torch.no_grad():
-        target_objs = []
-        ori_target_objs = []
-        caption_objs = get_nouns(caption, pos_tagger)
-        if source == 'gt':
-            pano_objs = panoseg(image=image, categories=pano_categories)
-            for obj in caption_objs:
-                if obj['obj'].lower() not in black_list:
-                    coco_category, color, map_file = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
-                    if coco_category in candi_objs:
-                        data = {
-                            'obj': coco_category,
-                            'num': 0,
-                            'color': color
-                        }
-                        if obj['hasNum']:
-                            data['num'] = obj['num']
-                        else:
-                            data['num'] = pano_objs.count(coco_category)
-                        ori_target_objs.append(obj['obj'])
-                        target_objs.append(data)
-            return target_objs, ori_target_objs, map_file
-        else:
-            ori_objs = copy.deepcopy(caption_objs)
-            for obj in caption_objs:
-                if obj['obj'].lower() not in black_list:
-                    obj['obj'], _, map_file = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
-            return caption_objs, ori_objs, map_file
+#     with torch.no_grad():
+#         target_objs = []
+#         ori_target_objs = []
+#         caption_objs = get_nouns(caption, pos_tagger)
+#         if source == 'gt':
+#             pano_objs = panoseg(image=image, categories=pano_categories)
+#             for obj in caption_objs:
+#                 if obj['obj'].lower() not in black_list:
+#                     coco_category, color, map_file = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
+#                     if coco_category in candi_objs:
+#                         data = {
+#                             'obj': coco_category,
+#                             'num': 0,
+#                             'color': color
+#                         }
+#                         if obj['hasNum']:
+#                             data['num'] = obj['num']
+#                         else:
+#                             data['num'] = pano_objs.count(coco_category)
+#                         ori_target_objs.append(obj['obj'])
+#                         target_objs.append(data)
+#             return target_objs, ori_target_objs, map_file
+#         else:
+#             ori_objs = copy.deepcopy(caption_objs)
+#             for obj in caption_objs:
+#                 if obj['obj'].lower() not in black_list:
+#                     obj['obj'], _, map_file = category_to_coco(classifier=classifier, category=obj['obj'].lower(), coco_categories=coco_categories, map_file=map_file)
+#             return caption_objs, ori_objs, map_file
 
-def inpaint(image, mask):
-    return lama(image, mask)
+# # def inpaint(image, mask):
+#     return lama(image, mask)
 
-def mask_dilate(ori_mask, bw_mask, target_color, kernel_size):
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)
-    exp_bw_mask = cv2.dilate(bw_mask, kernel, iterations=1)
+# # def mask_dilate(ori_mask, bw_mask, target_color, kernel_size):
+#     kernel = np.ones((kernel_size, kernel_size), np.uint8)
+#     exp_bw_mask = cv2.dilate(bw_mask, kernel, iterations=1)
     
-    if target_color != None:
-        for i in range(ori_mask.shape[0]):
-            for j in range(ori_mask.shape[1]):
-                if ori_mask[i][j].tolist() == target_color:
-                    exp_bw_mask[i][j] = BLACKPIXEL
-    return Image.fromarray(exp_bw_mask).convert('L')
+#     if target_color != None:
+#         for i in range(ori_mask.shape[0]):
+#             for j in range(ori_mask.shape[1]):
+#                 if ori_mask[i][j].tolist() == target_color:
+#                     exp_bw_mask[i][j] = BLACKPIXEL
+#     return Image.fromarray(exp_bw_mask).convert('L')
 
-def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./obj_mask/'):
-    '''从image中把mask中target_color的obj扣掉
-    contains = [{'obj': 'bus', 'num': 3, 'color': [0, 128, 128]}]
-    :param model: _description_
-    :param image_path: _description_
-    :param mask_path: _description_
-    :param target_color: _description_, defaults to [255, 255, 255]
-    :param output_path: _description_, defaults to './'
-    '''
-    # 先获得要扣去obj的黑白mask，白色部分为要扣去的部分
-    save_path = os.path.join(output_path, os.path.splitext(os.path.basename(image_path))[0])
-    mkdir(save_path)
+# # def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./obj_mask/'):
+#     '''从image中把mask中target_color的obj扣掉
+#     contains = [{'obj': 'bus', 'num': 3, 'color': [0, 128, 128]}]
+#     :param model: _description_
+#     :param image_path: _description_
+#     :param mask_path: _description_
+#     :param target_color: _description_, defaults to [255, 255, 255]
+#     :param output_path: _description_, defaults to './'
+#     '''
+#     # 先获得要扣去obj的黑白mask，白色部分为要扣去的部分
+#     save_path = os.path.join(output_path, os.path.splitext(os.path.basename(image_path))[0])
+#     mkdir(save_path)
 
-    image = Image.open(image_path)
-    # mask = np.array(Image.open(mask_path))
-    objs = [item['obj'] for item in contains]
-    colors = [item['color'] for item in contains]
+#     image = Image.open(image_path)
+#     # mask = np.array(Image.open(mask_path))
+#     objs = [item['obj'] for item in contains]
+#     colors = [item['color'] for item in contains]
 
-    for target_obj, target_color in zip(objs, colors):
-        inpaint_mask = np.zeros_like(mask)
-        for i in range(mask.shape[0]):
-            for j in range(mask.shape[1]):
-                if mask[i][j].tolist() != target_color and mask[i][j].tolist() in colors:
-                    inpaint_mask[i][j] = WHITEPIXEL
-                else:
-                    inpaint_mask[i][j] = BLACKPIXEL
-        inpaint_mask = mask_dilate(ori_mask=mask, bw_mask=inpaint_mask, target_color=target_color, kernel_size=kernel_size)
-        inpaint_img = inpaint(image=image, mask=inpaint_mask)
-        save_name = f'{target_obj}.png'
-        inpaint_img.save(os.path.join(save_path, save_name))
+#     for target_obj, target_color in zip(objs, colors):
+#         inpaint_mask = np.zeros_like(mask)
+#         for i in range(mask.shape[0]):
+#             for j in range(mask.shape[1]):
+#                 if mask[i][j].tolist() != target_color and mask[i][j].tolist() in colors:
+#                     inpaint_mask[i][j] = WHITEPIXEL
+#                 else:
+#                     inpaint_mask[i][j] = BLACKPIXEL
+#         inpaint_mask = mask_dilate(ori_mask=mask, bw_mask=inpaint_mask, target_color=target_color, kernel_size=kernel_size)
+#         inpaint_img = inpaint(image=image, mask=inpaint_mask)
+#         save_name = f'{target_obj}.png'
+#         inpaint_img.save(os.path.join(save_path, save_name))
     
-    inpaint_mask = np.zeros_like(mask)
-    for i in range(mask.shape[0]):
-        for j in range(mask.shape[1]):
-            if mask[i][j].tolist() in colors:
-                inpaint_mask[i][j] = WHITEPIXEL
-            else:
-                inpaint_mask[i][j] = BLACKPIXEL
-    inpaint_mask = mask_dilate(ori_mask=mask, bw_mask=inpaint_mask, target_color=None, kernel_size=kernel_size)
-    inpaint_img = inpaint(image=image, mask=inpaint_mask)
-    save_name = 'background.png'
-    inpaint_img.save(os.path.join(save_path, save_name))
-    return save_path
+#     inpaint_mask = np.zeros_like(mask)
+#     for i in range(mask.shape[0]):
+#         for j in range(mask.shape[1]):
+#             if mask[i][j].tolist() in colors:
+#                 inpaint_mask[i][j] = WHITEPIXEL
+#             else:
+#                 inpaint_mask[i][j] = BLACKPIXEL
+#     inpaint_mask = mask_dilate(ori_mask=mask, bw_mask=inpaint_mask, target_color=None, kernel_size=kernel_size)
+#     inpaint_img = inpaint(image=image, mask=inpaint_mask)
+#     save_name = 'background.png'
+#     inpaint_img.save(os.path.join(save_path, save_name))
+#     return save_path
 
-def obj2mask(image_dir, contains, coco_categories):
-    image_list = os.listdir(image_dir)
-    for image_name in image_list:
-        image_path = os.path.join(image_dir, image_name)
-        image = Image.open(image_path)
-        objs, mask = semseg(image=image, coco_categories=coco_categories)
-        target_name = os.path.splitext(image_name)[0]
-        if target_name != 'background':
-            target_mask = np.ones_like(mask) * 255
-            for item in contains:
-                if item['obj'] == target_name:
-                    target_color = item['color']
-                    for i in range(target_mask.shape[0]):
-                        for j in range(target_mask.shape[1]):
-                            if mask[i][j].tolist() == target_color:
-                                target_mask[i][j] = np.array(target_color)
-                    break
-        else:
-            target_mask = mask
-        target_mask = Image.fromarray(target_mask.astype(np.uint8))
-        target_mask.save(image_path)
+# # def obj2mask(image_dir, contains, coco_categories):
+#     image_list = os.listdir(image_dir)
+#     for image_name in image_list:
+#         image_path = os.path.join(image_dir, image_name)
+#         image = Image.open(image_path)
+#         objs, mask = semseg(image=image, coco_categories=coco_categories)
+#         target_name = os.path.splitext(image_name)[0]
+#         if target_name != 'background':
+#             target_mask = np.ones_like(mask) * 255
+#             for item in contains:
+#                 if item['obj'] == target_name:
+#                     target_color = item['color']
+#                     for i in range(target_mask.shape[0]):
+#                         for j in range(target_mask.shape[1]):
+#                             if mask[i][j].tolist() == target_color:
+#                                 target_mask[i][j] = np.array(target_color)
+#                     break
+#         else:
+#             target_mask = mask
+#         target_mask = Image.fromarray(target_mask.astype(np.uint8))
+#         target_mask.save(image_path)
 
 
 
@@ -375,13 +377,31 @@ if __name__ == "__main__":
         for line in f:
             data = json.loads(line)
             coco_categories.append(data)
+    save_path = '/home/wgy/multimodal/MuMo/test/masks'
+    # image_path = '/home/wgy/multimodal/images_ablation/000000383386.jpg'
+    # image_name = image_path.split('/')[-1]
+    # base_name = image_name.split('.')[0]
+    # save_dir = os.path.join(save_path, base_name)
+    # mkdir(save_dir)
+    
+    # image = Image.open(image_path)
+    # candi_objs, mask = semseg(image=image, coco_categories=coco_categories)
+    # mask = mask.astype(np.uint8)
+    # mask_img = Image.fromarray(mask)
+    # mask_name = base_name + '-0.png'
+    # mask_path = os.path.join(save_path, mask_name)
+    # mask_img.save(mask_path)
 
-    mask0_path = './test/mask-0-3.png'
-    mask1_path = './test/mask-0-1.png'
-    save_dir = './test/masks1'
-    mkdir(save_dir)
+    image_dir = '/home/wgy/multimodal/MuMo/test/images'
+    mkdir(image_dir)
 
-    re_draw(image_path=mask0_path, output_path=save_dir, num_samples=100, sample_c=2, sample_step=1000)
+    list1 = os.listdir(save_path)
+    for item in tqdm(list1):
+        mask_path = os.path.join(save_path, item)
+        re_draw(mask_path, image_dir, num_samples=50, sample_c=2, sample_step=1000)
+        
+
+    # re_draw(image_path=mask0_path, output_path=save_dir, num_samples=100, sample_c=2, sample_step=1000)
     # re_draw(image_path=mask1_path, output_path=save_dir, num_samples=100, sample_c=2, sample_step=1000)
 
 

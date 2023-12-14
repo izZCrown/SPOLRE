@@ -459,7 +459,7 @@ if __name__ == "__main__":
 
     # 用panoseg初筛一下生成的image
     # =======================================
-    directory = '../gen_image_final'
+    directory = '../gen_image_ablation'
 
     all_files = list_image_files_recursively(directory)
     obj_dict = {}
@@ -469,7 +469,7 @@ if __name__ == "__main__":
             obj_dict[data['name'].split('.')[0]] = [data['tar_objs'], data['gt_objs'], data['gt']]
 
 
-    with open('./check_final.jsonl', 'w') as f:
+    with open('./check_ablation.jsonl', 'w') as f:
         for item in tqdm(all_files):
             base_name = os.path.basename(item)
             cur_objs = obj_dict[base_name.split('-')[0]]

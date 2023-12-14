@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 sys.path.append('./tools/PITI')
 sys.path.append('./tools/OpenSeeD')
@@ -31,9 +31,9 @@ def get_objs_from_caption(caption, coco_categories, map_file):
         return caption_objs, ori_objs, map_file
 
 
-path = '/home/wgy/multimodal/caption_final.jsonl'
-path1 = '/home/wgy/multimodal/MuMo/check_final_filter.jsonl'
-save_path = '../all_info_final.jsonl'
+path = '/home/wgy/multimodal/caption_1212_7.jsonl'
+path1 = '/home/wgy/multimodal/MuMo/check_ablation_filted.jsonl'
+save_path = '../all_info_ablation.jsonl'
 
 coco_categories = []
 with open('./id-category-color.jsonl', 'r') as f:

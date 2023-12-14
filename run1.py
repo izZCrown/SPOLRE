@@ -381,31 +381,31 @@ if __name__ == "__main__":
     with open(map_file_path, 'r') as f:
         map_file = json.load(f)
 
-    image_path = '/home/wgy/multimodal/images_1205/000000004495.jpg'
-    caption = "A living room with a couch and chair."
+    image_path = '/home/wgy/multimodal/MuMo/test/000000070229.jpg'
+    caption = "a park bench that has a teddy bear on it."
     mask_bank_path = '../mask_bank_1208'
     # gen_image_path = '../gen_image_1208'
-    # obj_mask_path = '../obj_mask_1208'
+    obj_mask_path = '../obj_mask_1208'
 
-    image_name = '000000004495.jpg'
-    base_name = '000000004495'
+    image_name = '000000070229.jpg'
+    base_name = '000000070229'
     mask_dir = os.path.join(mask_bank_path, base_name)
-    # mkdir(mask_dir)
+    mkdir(mask_dir)
 
     image = Image.open(image_path)
     candi_objs, mask = semseg(image=image, coco_categories=coco_categories)
     mask = mask.astype(np.uint8)
     mask_img = Image.fromarray(mask)
     mask_name = base_name + '-0.png'
-    # mask_path = os.path.join(mask_dir, mask_name)
-    # mask_img.save(mask_path)
+    mask_path = os.path.join(mask_dir, mask_name)
+    mask_img.save(mask_path)
     target_objs, caption_objs, map_file = get_objs_from_caption(caption=caption, coco_categories=coco_categories, map_file=map_file, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
     print(f'target_objs: {target_objs}')
     print(f'caption_objs: {caption_objs}')
 
-    # obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=50, output_path=obj_mask_path)
-    # print(obj_image_path)
-    # obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
+    obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=50, output_path=obj_mask_path)
+    print(obj_image_path)
+    obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
     # print('Adjusting layout...')
     # editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=49)
     # mask_list = os.listdir(mask_dir)
