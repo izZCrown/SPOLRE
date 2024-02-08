@@ -381,80 +381,79 @@ if __name__ == "__main__":
     gen_image_path = '../gen_image_1207'
     obj_mask_path = '../obj_mask_1207'
 
-    # mkdir(mask_bank_path)
-    # mkdir(gen_image_path)
-    # mkdir(obj_mask_path)
+    mkdir(mask_bank_path)
+    mkdir(gen_image_path)
+    mkdir(obj_mask_path)
 
-    # caption_path = '../image_caption_1205.json'
-    # # target_objs_path = '/home/wgy/multimodal/MuMo/target_objs.json'
-    # target_objs_path = './target_objs_12070.jsonl'
-    # map_file_path = './category2coco.json'
-    # with open(map_file_path, 'r') as f:
-    #     map_file = json.load(f)
-    # with open(caption_path, 'r') as f_r:
-    #     data_list = json.load(f_r)
+    caption_path = '../image_caption_1205.json'
+    target_objs_path = './target_objs_12070.jsonl'
+    map_file_path = './category2coco.json'
+    with open(map_file_path, 'r') as f:
+        map_file = json.load(f)
+    with open(caption_path, 'r') as f_r:
+        data_list = json.load(f_r)
 
-    # with open(target_objs_path, 'w') as f_w:
-    #     start_time = time.time()
-    #     i = 0
-    #     for key in tqdm(data_list.keys()):
-    #         i += 1
-    #         if i % 6 == 0:
-    #             image_name = data_list[key]['img_id']
-    #         # if image_name == '000000002592.jpg':
-    #             base_name = os.path.splitext(image_name)[0]
-    #             mask_dir = os.path.join(mask_bank_path, base_name)
-    #             mkdir(mask_dir)
-    #             caption = data_list[key]['caption']
+    with open(target_objs_path, 'w') as f_w:
+        start_time = time.time()
+        i = 0
+        for key in tqdm(data_list.keys()):
+            i += 1
+            if i % 6 == 0:
+                image_name = data_list[key]['img_id']
+            # if image_name == '000000002592.jpg':
+                base_name = os.path.splitext(image_name)[0]
+                mask_dir = os.path.join(mask_bank_path, base_name)
+                mkdir(mask_dir)
+                caption = data_list[key]['caption']
 
-    #             image_path = os.path.join(image_bank_path, image_name)
-    #             image = Image.open(image_path)
-    #             candi_objs, mask = semseg(image=image, coco_categories=coco_categories)
-    #             mask = mask.astype(np.uint8)
-    #             mask_img = Image.fromarray(mask)
-    #             mask_name = base_name + '-0.png'
-    #             mask_path = os.path.join(mask_dir, mask_name)
-    #             mask_img.save(mask_path)
+                image_path = os.path.join(image_bank_path, image_name)
+                image = Image.open(image_path)
+                candi_objs, mask = semseg(image=image, coco_categories=coco_categories)
+                mask = mask.astype(np.uint8)
+                mask_img = Image.fromarray(mask)
+                mask_name = base_name + '-0.png'
+                mask_path = os.path.join(mask_dir, mask_name)
+                mask_img.save(mask_path)
 
-    #             try:
-    #                 print('Extracting target objs from caption...')
-    #                 target_objs, caption_objs, map_file = get_objs_from_caption(caption=caption, coco_categories=coco_categories, map_file=map_file, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
-    #                 print(f'target_objs: {target_objs}')
-    #                 print(f'caption_objs: {caption_objs}')
+                try:
+                    print('Extracting target objs from caption...')
+                    target_objs, caption_objs, map_file = get_objs_from_caption(caption=caption, coco_categories=coco_categories, map_file=map_file, image=image, candi_objs=candi_objs, pano_categories=pano_categories, source='gt')
+                    print(f'target_objs: {target_objs}')
+                    print(f'caption_objs: {caption_objs}')
 
 
-    #                 if len(target_objs) != 0:
-    #                     sample_data = {
-    #                         'name': image_name,
-    #                         'tar_objs': target_objs,
-    #                         # 'candi': candi_objs,
-    #                         'gt_objs': caption_objs,
-    #                         'gt': caption
-    #                     }
-    #                     # json.dump(sample_data, f_w, indent=4)
-    #                     f_w.write(json.dumps(sample_data) + '\n')
+                    if len(target_objs) != 0:
+                        sample_data = {
+                            'name': image_name,
+                            'tar_objs': target_objs,
+                            # 'candi': candi_objs,
+                            'gt_objs': caption_objs,
+                            'gt': caption
+                        }
+                        # json.dump(sample_data, f_w, indent=4)
+                        f_w.write(json.dumps(sample_data) + '\n')
 
-    #                     print('Extracting target objs...')
-    #                     obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=50, output_path=obj_mask_path)
-    #                     obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
+                        print('Extracting target objs...')
+                        obj_image_path = get_target_obj(image_path=image_path, mask=mask, contains=target_objs, kernel_size=50, output_path=obj_mask_path)
+                        obj2mask(image_dir=obj_image_path, contains=target_objs, coco_categories=coco_categories)
 
-    #                     print('Adjusting layout...')
-    #                     editor(image_dir=obj_image_path, output_path=mask_dir, step=10, gen_num=49)
+                        print('Adjusting layout...')
+                        editor(image_dir=obj_image_path, output_path=mask_dir, step=10, gen_num=49)
 
-    #                     mask_list = os.listdir(mask_dir)
-    #                     print('Generating new images...')
-    #                     for item in tqdm(mask_list):
-    #                         mask_base_name = os.path.splitext(item)[0]
-    #                         mask_path = os.path.join(mask_dir, item)
-    #                         output_dir = os.path.join(os.path.join(gen_image_path, base_name))
-    #                         re_draw(image_path=mask_path, output_path=output_dir, num_samples=10)
-    #             except Exception:
-    #                 print('--------error--------')
-    #                 traceback.print_exc()
-    #                 print('---------------------')
-    #             end_time = time.time()
-    #             print(f'Total: {end_time - start_time}s')
-    #             start_time = end_time
+                        mask_list = os.listdir(mask_dir)
+                        print('Generating new images...')
+                        for item in tqdm(mask_list):
+                            mask_base_name = os.path.splitext(item)[0]
+                            mask_path = os.path.join(mask_dir, item)
+                            output_dir = os.path.join(os.path.join(gen_image_path, base_name))
+                            re_draw(image_path=mask_path, output_path=output_dir, num_samples=10)
+                except Exception:
+                    print('--------error--------')
+                    traceback.print_exc()
+                    print('---------------------')
+                end_time = time.time()
+                print(f'Total: {end_time - start_time}s')
+                start_time = end_time
     print('Finish...')
 
 
