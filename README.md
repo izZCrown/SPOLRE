@@ -1,13 +1,13 @@
-# MuMo
+# SPOLRE
 
-## Installation
+## Environment Setup
 
 ```shell
 # Put the dependent tools under the tools folder.
 git clone https://github.com/IDEA-Research/OpenSeeD.git
 git clone https://github.com/PITI-Synthesis/PITI.git
 
-conda create -n mumo python=3.9 -y
+conda create -n spolre python=3.9 -y
 # Install according to your CUDA version
 pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
@@ -34,3 +34,13 @@ https://hkustconnect-my.sharepoint.com/:u:/g/personal/tfwang_connect_ust_hk/ERPF
 https://github.com/IDEA-Research/OpenSeeD/releases/download/openseed/model_state_dict_swint_51.2ap.pt
 ```
 
+## How to run
+```shell
+python run.py 
+    --image_path <Path to seed images>
+    --mask_path <Save path of the image masks>
+    --output_path <Save path of the generated images>
+    --obj_mask_path <Save path of object masks>
+    --caption_path <Path to the captions>
+    --target_obj_path <Save path of target object information>
+```
