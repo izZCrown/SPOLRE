@@ -1,46 +1,30 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import sys
 sys.path.append('./tools/PITI')
 sys.path.append('./tools/OpenSeeD')
 
-from argument import parser, print_args
 from einops import rearrange
-from PIL import Image, ImageChops
+from PIL import Image
 import cv2
 import numpy as np
 np.random.seed(1)
-from util import mkdir, Colorize, category_to_coco, get_nouns, load_draw_model, load_seg_model, load_embed_model, list_image_files_recursively
+from util import mkdir, Colorize, category_to_coco, get_nouns, load_draw_model, load_seg_model
 import torch
 from torchvision import transforms
-from tools.OpenSeeD.utils.arguments import load_opt_command
-from detectron2.data import MetadataCatalog
-from detectron2.utils.colormap import random_color
-from tools.OpenSeeD.openseed.BaseModel import BaseModel
-from tools.OpenSeeD.openseed import build_model
-from tools.OpenSeeD.utils.visualizer import Visualizer
 import json
-from sentence_transformers import SentenceTransformer
-import pickle
 from simple_lama_inpainting import SimpleLama
 lama = SimpleLama()
-
-from tools.PITI.pretrained_diffusion import dist_util, logger
-from torchvision.utils import make_grid
-from tools.PITI.pretrained_diffusion.script_util import create_model_and_diffusion
 from tools.PITI.pretrained_diffusion.image_datasets_mask import get_tensor
-from tools.PITI.pretrained_diffusion.train_util import TrainLoop
 from tools.PITI.pretrained_diffusion.glide_util import sample
 import time
 from tqdm import tqdm
-from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification, TokenClassificationPipeline
+from transformers import pipeline
 from layout_editor import editor
 import traceback
 import copy
 import stanza
+import argparse
 
-
-args = parser()
 BLACKPIXEL = np.array([0, 0, 0])
 WHITEPIXEL = np.array([255, 255, 255])
 
@@ -68,10 +52,6 @@ colorizer = Colorize(182)
 print('loading panoseg model...')
 panoseg_model, pano_categories = load_seg_model(model_path=seg_model_path, mode='pano', device=device)
 
-# print('loading embedding model...')
-# embed_model_name = 'SpanBERT/spanbert-large-cased'
-# embed_model = load_embed_model(model_name_or_path=embed_model_name, device=device)
-
 print('loading classifier...')
 if device == 'cuda':
     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0)
@@ -79,15 +59,62 @@ else:
     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 print('loading pos tagger...')
-# pos_model_path = 'QCRI/bert-base-multilingual-cased-pos-english'
-# pos_model = AutoModelForTokenClassification.from_pretrained(pos_model_path)
-# pos_tokenizer = AutoTokenizer.from_pretrained(pos_model_path)
 
-# pos_tagger = TokenClassificationPipeline(model=pos_model, tokenizer=pos_tokenizer)
 pos_tagger = stanza.Pipeline(lang='en', processors='tokenize,pos')
 print('loading models completed')
 # ==============================
 black_list = ['top']
+
+def parse_args(input_args=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--image_path",
+        type=str,
+        default="./images",
+        required=True,
+        help="The path of seed images",
+    )
+    parser.add_argument(
+        "--mask_path",
+        type=str,
+        default="./masks",
+        required=True,
+        help="Save path of the image masks",
+    )
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        default="./outputs",
+        required=True,
+        help="Save path of the generated images",
+    )
+    parser.add_argument(
+        "--obj_mask_path",
+        type=str,
+        default="./obj_masks",
+        required=True,
+        help="Save path of object masks",
+    )
+    parser.add_argument(
+        "--caption_path",
+        type=str,
+        default="./captions.jsonl",
+        required=True,
+        help="Path to the captions",
+    )
+    parser.add_argument(
+        "--target_obj_path",
+        type=str,
+        default="./target_objs.jsonl",
+        required=True,
+        help="Save path of target object information",
+    )
+    if input_args is not None:
+        args = parser.parse_args(input_args)
+    else:
+        args = parser.parse_args()
+    return args
+
 
 def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=100, device='cuda'):
     '''Use PITI to draw according to the given mask
@@ -104,7 +131,6 @@ def re_draw(image_path, output_path, num_samples=1, sample_c=1.3, sample_step=10
     image = Image.open(image_path)
     label = image.convert("RGB").resize((256, 256), Image.NEAREST)
     image = np.array(image)
-    # label = image.convert("RGB")
     label_tensor = get_tensor()(label)
 
     model_kwargs = {"ref":label_tensor.unsqueeze(0).repeat(num_samples, 1, 1, 1)}
@@ -166,10 +192,8 @@ def semseg(image, coco_categories):
     :param transform: _description_
     :param output_path: _description_, defaults to './mask_bank'
     '''
-    # mkdir(output_path)
 
     with torch.no_grad():
-        # image = Image.open(image_path).convert("RGB")
         width = image.size[0]
         height = image.size[1]
         image = transform(image)
@@ -194,11 +218,6 @@ def semseg(image, coco_categories):
         rgb_mask = gray_mask.convert('L')
         rgb_mask = np.array(rgb_mask)
         rgb_mask = np.transpose(colorizer(rgb_mask), (1,2,0))
-        # rgb_mask = Image.fromarray(rgb_mask.astype(np.uint8))
-        # ori_name = os.path.basename(image_path)
-        # save_name = os.path.splitext(ori_name)[0] + '-' + str(0) + '.png'
-        # save_path = os.path.join(output_path, save_name)
-        # rgb_mask.save(save_path)
 
         return objects, rgb_mask
             
@@ -212,7 +231,6 @@ def panoseg(image, categories):
     :return: _description_
     '''
     with torch.no_grad():
-        # image_ori = Image.open(image_path).convert("RGB")
         image_ori = image.convert("RGB")
         width = image_ori.size[0]
         height = image_ori.size[1]
@@ -300,7 +318,7 @@ def mask_dilate(ori_mask, bw_mask, target_color, kernel_size):
     return Image.fromarray(exp_bw_mask).convert('L')
 
 def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./obj_mask/'):
-    '''从image中把mask中target_color的obj扣掉
+    '''
     contains = [{'obj': 'bus', 'num': 3, 'color': [0, 128, 128]}]
     :param model: _description_
     :param image_path: _description_
@@ -308,12 +326,11 @@ def get_target_obj(image_path, mask, contains, kernel_size=70, output_path='./ob
     :param target_color: _description_, defaults to [255, 255, 255]
     :param output_path: _description_, defaults to './'
     '''
-    # 先获得要扣去obj的黑白mask，白色部分为要扣去的部分
+
     save_path = os.path.join(output_path, os.path.splitext(os.path.basename(image_path))[0])
     mkdir(save_path)
 
     image = Image.open(image_path)
-    # mask = np.array(Image.open(mask_path))
     objs = [item['obj'] for item in contains]
     colors = [item['color'] for item in contains]
 
@@ -365,28 +382,25 @@ def obj2mask(image_dir, contains, coco_categories):
         target_mask = Image.fromarray(target_mask.astype(np.uint8))
         target_mask.save(image_path)
 
-
-
-
-
 if __name__ == "__main__":
+    args = parse_args()
     coco_categories = []
     with open('./id-category-color.jsonl', 'r') as f:
         for line in f:
             data = json.loads(line)
             coco_categories.append(data)
 
-    image_bank_path = '../images_1205'
-    mask_bank_path = '../mask_bank_1207'
-    gen_image_path = '../gen_image_1207'
-    obj_mask_path = '../obj_mask_1207'
+    image_bank_path = args.image_path
+    mask_bank_path = args.mask_path
+    gen_image_path = args.output_path
+    obj_mask_path = args.obj_mask_path
 
     mkdir(mask_bank_path)
     mkdir(gen_image_path)
     mkdir(obj_mask_path)
 
-    caption_path = '../image_caption_1205.json'
-    target_objs_path = './target_objs_12070.jsonl'
+    caption_path = args.caption_path
+    target_objs_path = args.target_obj_path
     map_file_path = './category2coco.json'
     with open(map_file_path, 'r') as f:
         map_file = json.load(f)
@@ -400,7 +414,6 @@ if __name__ == "__main__":
             i += 1
             if i % 6 == 0:
                 image_name = data_list[key]['img_id']
-            # if image_name == '000000002592.jpg':
                 base_name = os.path.splitext(image_name)[0]
                 mask_dir = os.path.join(mask_bank_path, base_name)
                 mkdir(mask_dir)
@@ -426,11 +439,9 @@ if __name__ == "__main__":
                         sample_data = {
                             'name': image_name,
                             'tar_objs': target_objs,
-                            # 'candi': candi_objs,
                             'gt_objs': caption_objs,
                             'gt': caption
                         }
-                        # json.dump(sample_data, f_w, indent=4)
                         f_w.write(json.dumps(sample_data) + '\n')
 
                         print('Extracting target objs...')
@@ -455,12 +466,3 @@ if __name__ == "__main__":
                 print(f'Total: {end_time - start_time}s')
                 start_time = end_time
     print('Finish...')
-
-
-
-
-
-
-
-
-

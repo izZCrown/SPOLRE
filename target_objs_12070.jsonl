@@ -1,7 +1,0 @@
-{"name": "000000226058.jpg", "tar_objs": [{"obj": "teddy bear", "num": 2, "color": [96, 64, 0]}], "gt_objs": ["teddy bears"], "gt": "teddy bears dressed up in clothing sitting on a loveseat together"}
-{"name": "000000004495.jpg", "tar_objs": [{"obj": "couch", "num": 1, "color": [192, 192, 192]}, {"obj": "chair", "num": 1, "color": [64, 192, 192]}], "gt_objs": ["couch", "chair"], "gt": "A living room with a couch and chair."}
-{"name": "000000016439.jpg", "tar_objs": [{"obj": "light", "num": 1, "color": [0, 160, 0]}, {"obj": "laptop", "num": 1, "color": [224, 0, 0]}], "gt_objs": ["lamp", "laptop"], "gt": "A small desk with lamp, phone, and laptop on it."}
-{"name": "000000049269.jpg", "tar_objs": [{"obj": "horse", "num": 1, "color": [128, 192, 0]}, {"obj": "grass", "num": 1, "color": [96, 64, 192]}, {"obj": "dog", "num": 1, "color": [0, 192, 0]}], "gt_objs": ["horse", "grass", "dog"], "gt": "A horse in a pasture of tall grass observing an energetic dog."}
-{"name": "000000078426.jpg", "tar_objs": [{"obj": "cat", "num": 1, "color": [128, 64, 0]}], "gt_objs": ["cat"], "gt": "A gray cat lying on a desk near a telephone."}
-{"name": "000000088951.jpg", "tar_objs": [{"obj": "person", "num": 1, "color": [128, 0, 0]}, {"obj": "dog", "num": 1, "color": [0, 192, 0]}], "gt_objs": ["man", "dog"], "gt": "A man and his dog sit at the park."}
-{"name": "000000120572.jpg", "tar_objs": [{"obj": "stone", "num": 1, "color": [0, 160, 64]}], "gt_objs": ["stone wall"], "gt": "A long stone wall at a church with a cemetary."}

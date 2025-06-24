@@ -68,7 +68,7 @@ def labelcolormap(N):
     cmap = np.zeros((N, 3), dtype=np.uint8)
     for i in range(N):
         r, g, b = 0, 0, 0
-        id = i + 1  # let's give 0 a color
+        id = i + 1
         for j in range(7):
             str_id = uint82bin(id)
             r = r ^ (np.uint8(str_id[-1]) << (7 - j))
@@ -96,31 +96,10 @@ class Colorize(object):
 
         return color_image
 
-# def category_to_coco(model, category, coco_categories):
-#     '''Map objects to categories in Coco
-
-#     :param model: _description_
-#     :param category: _description_
-#     :param coco_categories: _description_
-#     :return: _description_
-#     '''
-#     category_embedding = model.encode([category.lower()])[0]
-#     distances = []
-#     for item in coco_categories:
-#         cos_dis = cosine(category_embedding, item['embed'])
-#         distances.append(cos_dis)
-
-#     min_dis = min(distances)
-#     min_index = distances.index(min_dis)
-#     category = coco_categories[min_index]['category']
-#     color = coco_categories[min_index]['color']
-#     return category, color
-
 def category_to_coco(classifier, category, coco_categories, map_file):
     if category in map_file.keys():
         coco_category = map_file[category]
-    # elif category[-1] == 's' and category[:-1] in map_file.keys():
-        # coco_category = map_file[category[:-1]]
+
     else:
         categories = []
         for item in coco_categories:
@@ -141,8 +120,6 @@ def category_to_coco(classifier, category, coco_categories, map_file):
             output_labels = []
         coco_category = categories[0]
         map_file[category] = coco_category
-        # with open(map_file, 'w') as f:
-            # json.dump(map_file, f, indent=4)
 
     coco_index = None
     for i, item in enumerate(coco_categories):
@@ -152,138 +129,6 @@ def category_to_coco(classifier, category, coco_categories, map_file):
     coco_color = coco_categories[coco_index]['color']
     return coco_category, coco_color, map_file
 
-
-# def token_from_nltk(sentence):
-#     words, tagged_tokens = [], []
-#     tokens = pos_tag(word_tokenize(sentence))
-#     for item in tokens:
-#         word = item[0]
-#         tag = item[1]
-#         if word[-1] == '.':
-#             word = word[:-1]
-#         if word != ' ' and word != '':
-#             words.append(word)
-#             tagged_tokens.append((word, tag))
-#     return words, tagged_tokens
-
-# def token_from_spacy(sentence):
-#     words, tagged_tokens = [], []
-#     tokens = nlp(sentence)
-#     for item in tokens:
-#         word = item.text
-#         tag = item.pos_
-#         if word[-1] == '.':
-#             word = word[:-1]
-#         if word != ' ' and word != '':
-#             words.append(word)
-#             tagged_tokens.append((word, tag))
-#     return words, tagged_tokens
-
-# def get_nouns(sentence):
-#     sentence = re.sub(r'[^\w\s,.]', ' ', sentence.rstrip()).replace('  ', ' ')
-#     if sentence[-1] == '.':
-#         sentence = sentence[:-1]
-#     nouns = []
-#     target_spacy = ['NOUN', 'PROPN']
-#     adjectives_spacy = ['ADJ']
-#     targets_nltk = ['NN', 'NNS', 'NNP', 'NNPS']
-#     adjectives_nltk = ['JJ', 'JJR', 'JJS']
-#     words_spacy, tokens_spacy = token_from_spacy(sentence)
-#     words_nltk, tokens_nltk = token_from_nltk(sentence)
-
-#     if words_spacy == words_nltk:
-#         tokens = []
-#         for token_spacy, token_nltk in zip(tokens_spacy, tokens_nltk):
-#             word = token_spacy[0]
-#             tag_spacy = token_spacy[1]
-#             tag_nltk = token_nltk[1]
-#             tag = tag_spacy
-#             if tag_spacy in target_spacy or tag_nltk in targets_nltk:
-#                 tag = 'NN'
-#             elif tag_spacy in adjectives_spacy or tag_nltk in adjectives_nltk:
-#                 tag = 'ADJ'
-#             elif tag_spacy == 'NUM' or tag_nltk == 'CD':
-#                 tag = 'NUM'
-#             tokens.append((word, tag))
-            
-#         i = 0
-#         while i < len(tokens):
-#             data = {
-#                 'obj': '',
-#                 'num': 1,
-#                 'hasNum': False
-#             }
-#             token = tokens[i]
-#             if (token[1] == 'ADJ' and i + 1 < len(tokens) and tokens[i+1][1] == 'NN') or token[1] == 'NN':
-#                 noun = [token[0]]
-
-#                 j = i + 1
-#                 while j < len(tokens) and tokens[j][1] == 'NN':
-#                     noun.append(tokens[j][0])
-#                     j += 1
-                
-#                 noun_pharse = ' '.join(noun)
-#                 data['obj'] = noun_pharse
-
-#                 length = len(noun_pharse.split())
-#                 if i > 0 and (tokens[i-length][1] == 'NUM' or tokens[i-length][0].lower() in ['a', 'an']):
-#                     if tokens[i-length][1] == 'NUM':
-#                         count = w2n.word_to_num(tokens[i-length][0])
-#                     else:
-#                         count = 1
-#                     data['num'] = count
-#                     data['hasNum'] = True
-#                 nouns.append(data)
-#                 i = j - 1
-#             i += 1
-#     return nouns
-
-# def get_nouns(sentence, tagger):
-#     nouns = []
-#     target = 'NOUN'
-#     adjective = 'ADJ'
-#     # targets = ['NN', 'NNS', 'NNP', 'NNPS']
-#     # adjectives = ['JJ', 'JJR', 'JJS']
-#     tokens = tagger(sentence).sentences[0].words
-
-#     i = 0
-#     while i < len(tokens):
-#         data = {
-#             'obj': '',
-#             'num': 1,
-#             'hasNum': False
-#         }
-#         token = tokens[i]
-#         if (token['entity'] in adjectives and i + 1 < len(tokens) and tokens[i+1]['entity'] in targets) or token['entity'] in targets:
-#             noun = [token['word']]
-#             obj = []
-#             if token['entity'] in targets:
-#                 obj.append(token['word'])
-
-#             j = i + 1
-#             while j < len(tokens) and tokens[j]['entity'] in targets:
-#                 noun.append(tokens[j]['word'])
-#                 obj.append(tokens[j]['word'])
-#                 j += 1
-            
-#             noun_pharse = ' '.join(noun)
-
-#             length = len(noun_pharse.split())
-#             if i > 0 and (tokens[i-length]['entity'] == 'CD' or tokens[i-length]['word'].lower() in ['a', 'an']):
-#                 if tokens[i-length]['entity'] == 'CD':
-#                     count = w2n.word_to_num(tokens[i-length]['word'])
-#                 else:
-#                     count = 1
-#                 data['num'] = count
-#                 data['hasNum'] = True
-#             # noun_pharse = noun_pharse.replace(' ##', '').replace('##', '')
-#             obj_pharse = ' '.join(obj)
-#             obj_pharse = obj_pharse.replace(' ##', '').replace('##', '')
-#             data['obj'] = obj_pharse
-#             nouns.append(data)
-#             i = j - 1
-#         i += 1
-#     return nouns
 
 def get_nouns(sentence, tagger):
     nouns = []
@@ -364,17 +209,6 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category-co
         stuff_colors = []
         stuff_dataset_id_to_contiguous_id = {}
 
-        # with open(categories_path, 'rb') as f:
-        #     index = 0
-        #     while True:
-        #         try:
-        #             data = pickle.load(f)
-        #             stuff_classes.append(data['category'])
-        #             stuff_colors.append([data['id']] * 3)
-        #             stuff_dataset_id_to_contiguous_id[index] = data['id']
-        #             index += 1
-        #         except Exception as e:
-        #             break
         with open(categories_path, 'r') as f:
             index = 0
             for line in f:
@@ -397,16 +231,6 @@ def load_seg_model(model_path, conf_file=None, categories_path='./id-category-co
         thing_classes = []
         stuff_classes = []
 
-        # with open(categories_path, 'rb') as f:
-        #     while True:
-        #         try:
-        #             data = pickle.load(f)
-        #             if data['id'] < 90:
-        #                 thing_classes.append(data['category'])
-        #             else:
-        #                 stuff_classes.append(data['category'])
-        #         except Exception as e:
-        #             break
         with open(categories_path, 'r') as f:
             for line in f:
                 data = json.loads(line)

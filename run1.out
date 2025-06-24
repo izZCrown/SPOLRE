@@ -1,48 +1,0 @@
-nohup: ignoring input
-[a100:1468644] mca_base_component_repository_open: unable to open mca_btl_openib: librdmacm.so.1: cannot open shared object file: No such file or directory (ignored)
-loading drawing model...
-loading semseg model...
-/home/wgy/miniconda3/envs/mumo/lib/python3.9/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at ../aten/src/ATen/native/TensorShape.cpp:3526.)
-  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
-self.task_switch  {'coco': True, 'o365': False}
-loading panoseg model...
-self.task_switch  {'coco': True, 'o365': False}
-loading embedding model...
-No sentence-transformers model found with name /home/wgy/.cache/torch/sentence_transformers/SpanBERT_spanbert-large-cased. Creating a new one with MEAN pooling.
-Some weights of BertModel were not initialized from the model checkpoint at /home/wgy/.cache/torch/sentence_transformers/SpanBERT_spanbert-large-cased and are newly initialized: ['bert.pooler.dense.weight', 'bert.pooler.dense.bias']
-You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
-loading classifier...
-loading pos tagger...
-2023-12-09 13:47:03 INFO: Checking for updates to resources.json in case models have been updated.  Note: this behavior can be turned off with download_method=None or download_method=DownloadMethod.REUSE_RESOURCES
-Downloading https://raw.githubusercontent.com/stanfordnlp/stanza-resources/main/resources_1.7.0.json:   0%|          | 0.00/46.1k [00:00<?, ?B/s]Downloading https://raw.githubusercontent.com/stanfordnlp/stanza-resources/main/resources_1.7.0.json: 369kB [00:00, 2.33MB/s]                    Downloading https://raw.githubusercontent.com/stanfordnlp/stanza-resources/main/resources_1.7.0.json: 369kB [00:00, 2.33MB/s]
-2023-12-09 13:47:04 WARNING: Language en package default expects mwt, which has been added
-2023-12-09 13:47:04 INFO: Loading these models for language: en (English):
-===============================
-| Processor | Package         |
--------------------------------
-| tokenize  | combined        |
-| mwt       | combined        |
-| pos       | combined_charlm |
-===============================
-
-2023-12-09 13:47:04 INFO: Using device: cuda
-2023-12-09 13:47:04 INFO: Loading: tokenize
-2023-12-09 13:47:04 INFO: Loading: mwt
-2023-12-09 13:47:04 INFO: Loading: pos
-2023-12-09 13:47:05 INFO: Done loading processors!
-loading models completed
-target_objs: [{'obj': 'banana', 'num': 1, 'color': [0, 64, 192]}, {'obj': 'apple', 'num': 1, 'color': [128, 64, 192]}, {'obj': 'table', 'num': 1, 'color': [128, 32, 192]}]
-caption_objs: ['banana', 'apple', 'table']
-../obj_mask_1208/000000058008
-Adjusting layout...
-  0%|          | 0/49 [00:00<?, ?it/s]  0%|          | 0/49 [00:03<?, ?it/s]
-Traceback (most recent call last):
-  File "/home/wgy/multimodal/MuMo/run1.py", line 409, in <module>
-    editor(image_dir=obj_image_path, output_path=mask_dir, step=5, gen_num=49)
-  File "/home/wgy/multimodal/MuMo/layout_editor.py", line 203, in editor
-    obj_list = get_obj_img(image_dir=image_dir, image_list=all_img)
-  File "/home/wgy/multimodal/MuMo/layout_editor.py", line 133, in get_obj_img
-    info = read_obj_info(mask)
-  File "/home/wgy/multimodal/MuMo/layout_editor.py", line 119, in read_obj_info
-    obj_info["x_max"] = max(point_x_set)
-ValueError: max() arg is an empty sequence
